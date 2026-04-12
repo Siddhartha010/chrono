@@ -50,10 +50,30 @@ export default function Layout() {
           ))}
         </nav>
         <div className="sidebar-footer">
-          <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>{user?.name}</div>
-          <div style={roleBadgeStyle}>{user?.role}</div>
-          <button className="btn btn-secondary btn-sm" style={{ marginTop: 10 }} onClick={handleLogout}>
-            <LogOut size={14} /> Logout
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 700, fontSize: '0.9rem', color: '#fff', flexShrink: 0
+            }}>
+              {user?.name?.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div style={{ color: '#e2e8f0', fontSize: '0.8rem', fontWeight: 600 }}>{user?.name}</div>
+              <div style={roleBadgeStyle}>{user?.role}</div>
+            </div>
+          </div>
+          <button onClick={handleLogout} style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 8, padding: '9px 0', borderRadius: 8, border: '1px solid #dc2626',
+            background: 'transparent', color: '#f87171', fontSize: '0.82rem',
+            fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s'
+          }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#dc2626'; e.currentTarget.style.color = '#fff'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#f87171'; }}
+          >
+            <LogOut size={15} /> Sign Out
           </button>
         </div>
       </aside>
