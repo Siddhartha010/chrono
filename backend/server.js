@@ -20,6 +20,7 @@ app.use('/api/classrooms', require('./routes/classrooms'));
 app.use('/api/timeslots', require('./routes/timeslots'));
 app.use('/api/timetable', require('./routes/timetable'));
 app.use('/api/export', require('./routes/export'));
+app.use('/api/schedules', require('./routes/schedules'));
 
 const PORT = process.env.PORT || 5000;
 

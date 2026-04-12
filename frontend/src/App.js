@@ -13,6 +13,8 @@ import Timeslots from './pages/Timeslots';
 import Generate from './pages/Generate';
 import TimetableView from './pages/TimetableView';
 import TeacherDashboard from './pages/TeacherDashboard';
+import PersonalScheduler from './pages/PersonalScheduler';
+import ExamScheduler from './pages/ExamScheduler';
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -36,6 +38,8 @@ export default function App() {
             <Route path="generate" element={<Generate />} />
             <Route path="timetable/:id" element={<TimetableView />} />
             <Route path="teacher-dashboard/:id" element={<TeacherDashboard />} />
+            <Route path="personal-scheduler" element={<PersonalScheduler />} />
+            <Route path="exam-scheduler" element={<ExamScheduler />} />
           </Route>
         </Routes>
       </BrowserRouter>
