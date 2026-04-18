@@ -5,8 +5,19 @@ A full-stack web application that uses a **Genetic Algorithm** to generate optim
 ## Problem Statement
 Traditional timetable scheduling in educational institutions is a complex, time-consuming, and error-prone manual process. It involves balancing numerous constraints, such as teacher availability, classroom capacity, subject hours, and preventing overlaps (clashes). As the number of classes and teachers grows, the possible combinations become astronomical, making it nearly impossible for a human to find an optimal, conflict-free solution.
 
-## Future Aspect
-Substitution managment
+## Future Aspects
+
+### Immediate Roadmap
+- **Advanced Substitution Management**: Enhanced substitute teacher assignment with preference matching
+- **Mobile Application**: React Native app for teachers and students
+- **Real-time Notifications**: WebSocket-based live updates for schedule changes
+- **Advanced Analytics**: Comprehensive reporting and insights dashboard
+
+### Long-term Vision
+- **AI-Powered Optimization**: Machine learning integration for predictive scheduling
+- **Multi-Institution Support**: Centralized management for multiple campuses
+- **Integration APIs**: Connect with existing ERP and LMS systems
+- **Blockchain Verification**: Immutable record keeping for academic schedules
 
 ## Solution
 **ChronoGen** solves this by leveraging an **AI-driven Genetic Algorithm (GA)**. By mimicking the process of natural selection, the system explores thousands of potential schedules, iteratively improving them through selection, crossover, and mutation. This automated approach ensures:
@@ -84,12 +95,13 @@ start.bat
 3. Add **Teachers** with course assignments and availability
 4. Add **Classrooms** with capacity and lab specifications
 5. Add **Classes** with subject-teacher assignments
-6. Configure **Time Slots** (days + periods)
-7. **Generate Timetables** → set GA parameters → generate
-8. **Edit Timetables** using drag-drop with conflict detection
-9. **Manage Substitutes** and teacher unavailabilities
-10. **Generate Exam Schedules** with conflict resolution
-11. **Export** timetables as PDF or Excel
+6. Configure **Time Slots** with validation (max 2-hour duration, no overlaps)
+7. **Generate Timetables** → automated optimization with hybrid GA approach
+8. **Edit Timetables** using drag-drop with intelligent conflict detection and alternative suggestions
+9. **Manage Semester Planning** with holiday calendars and weekly timetable generation
+10. **Handle Substitutes** and teacher unavailabilities with auto-assignment
+11. **Generate Exam Schedules** with conflict resolution
+12. **Export** timetables as PDF or Excel with detailed formatting
 
 ### Teacher Workflow
 1. **Login** as teacher
@@ -180,21 +192,343 @@ The system uses **MongoDB** with **Mongoose** models. Below is the relational st
 - `createdBy` (Ref: User)
 
 ## Key Features
-- **Smart Generation**: Automated scheduling using Genetic Algorithm logic.
-- **Conflict Management**: Ensures no teacher, class, or room is double-booked.
+- **Smart Generation**: Automated scheduling using hybrid Genetic Algorithm with intelligent fallback.
+- **Conflict Management**: Ensures no teacher, class, or room is double-booked with real-time validation.
+- **Advanced Conflict Resolution**: Interactive conflict notifications with alternative slot suggestions and one-click resolution.
+- **Time Slot Validation**: Prevents creation of time slots longer than 2 hours with overlap detection.
 - **Workload Balancing**: Respects teacher availability and maximum working hours.
 - **Interactive UI**: Responsive dashboard for data entry and timetable visualization.
 - **Role-Based Access**: Support for Admin, Teacher, and Student roles with different interfaces.
 - **Course Organization**: Teachers and subjects grouped by courses (BTech, BCS, MCA, MBA, MSc).
-- **Drag-Drop Editing**: Manual timetable editing with real-time conflict detection.
+- **Drag-Drop Editing**: Manual timetable editing with real-time conflict detection and smart suggestions.
+- **Semester Planning**: Comprehensive semester management with holiday tracking and compensation.
+- **Weekly Timetables**: Detailed weekly view with drag-drop editing and conflict resolution.
 - **Personal Scheduling**: Students can create and manage personal schedules.
 - **Exam Scheduling**: Automated exam timetable generation with conflict detection.
-- **Substitute Management**: Comprehensive substitute teacher system with auto-assignment.
+- **Substitute Management**: Comprehensive substitute teacher system with auto-assignment and swap functionality.
 - **Unavailability Tracking**: Teacher leave management with automatic substitute assignment.
 - **Bulk Operations**: Bulk selection and deletion across Teachers, Subjects, and Classrooms.
-- **Filtering**: View timetables by Class, Teacher, or Subject.
-- **Exporting**: One-click download as PDF or Excel files.
-- **Teacher Insights**: Dedicated dashboard for teacher workload analysis.
+- **Advanced Filtering**: View timetables by Class, Teacher, or Subject with real-time updates.
+- **Multi-Format Export**: One-click download as PDF or Excel files with detailed formatting.
+- **Teacher Insights**: Dedicated dashboard for teacher workload analysis and distribution.
+- **Holiday Management**: Interactive calendar for bulk holiday addition with impact analysis.
+
+## System Design
+
+### Architecture Overview
+**ChronoGen** follows a modern **3-tier architecture** with clear separation of concerns:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    PRESENTATION LAYER                       │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
+│  │   React.js      │  │   Components    │  │   Pages     │ │
+│  │   Frontend      │  │   - Sidebar     │  │   - Dashboard│ │
+│  │                 │  │   - Layout      │  │   - Generate │ │
+│  │                 │  │   - Conflict    │  │   - Timetable│ │
+│  │                 │  │     Notification│  │   - Teachers │ │
+│  └─────────────────┘  └─────────────────┘  └─────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+                                │
+                               HTTP/REST API
+                                │
+┌─────────────────────────────────────────────────────────────┐
+│                    APPLICATION LAYER                        │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
+│  │   Express.js    │  │   Routes        │  │   Utils     │ │
+│  │   Backend       │  │   - Auth        │  │   - GA      │ │
+│  │                 │  │   - Timetable   │  │   - Semester│ │
+│  │                 │  │   - Teachers    │  │     Generator│ │
+│  │                 │  │   - Substitutes │  │   - Export  │ │
+│  └─────────────────┘  └─────────────────┘  └─────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+                                │
+                            Mongoose ODM
+                                │
+┌─────────────────────────────────────────────────────────────┐
+│                      DATA LAYER                             │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
+│  │   MongoDB       │  │   Collections   │  │   Indexes   │ │
+│  │   Database      │  │   - Users       │  │   - Compound│ │
+│  │                 │  │   - Timetables  │  │   - Text    │ │
+│  │                 │  │   - Teachers    │  │   - Geo     │ │
+│  │                 │  │   - Substitutes │  │             │ │
+│  └─────────────────┘  └─────────────────┘  └─────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Core Components
+
+#### 1. **Genetic Algorithm Engine**
+```javascript
+// Hybrid Multi-Strategy Approach
+class GeneticAlgorithm {
+  strategies: [
+    PrimaryGA(populationSize: 100, generations: 200),
+    SecondaryGA(populationSize: 75, generations: 150),
+    QuickGA(populationSize: 50, generations: 100),
+    IntelligentFallback(priority-based scheduling)
+  ]
+  
+  fitness_evaluation: {
+    teacher_conflicts: -0.4,
+    classroom_conflicts: -0.3,
+    class_conflicts: -0.3,
+    availability_violations: -0.2,
+    workload_balance: +0.1
+  }
+}
+```
+
+#### 2. **Conflict Resolution System**
+```javascript
+// Real-time Conflict Detection
+conflictDetector: {
+  checkTeacherConflicts(entry, targetSlot),
+  checkClassroomConflicts(entry, targetSlot),
+  checkClassConflicts(entry, targetSlot),
+  findAlternativeSlots(entry, allEntries),
+  suggestOptimalMoves(conflicts)
+}
+
+// Interactive Resolution
+conflictNotification: {
+  displayConflicts(conflicts),
+  showAlternatives(availableSlots),
+  provideSolutions(conflictType),
+  enableOneClickResolution()
+}
+```
+
+#### 3. **Semester Planning Engine**
+```javascript
+// Week-by-Week Generation
+semesterPlanner: {
+  generateWeekRanges(startDate, endDate),
+  detectHolidays(week),
+  compensateClasses(missedClasses),
+  scheduleSaturdayMakeup(conflicts),
+  trackSyllabusProgress(subjects)
+}
+```
+
+### Data Flow Architecture
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   User      │───▶│  Frontend   │───▶│   Backend   │───▶│  Database   │
+│  Actions    │    │  React.js   │    │ Express.js  │    │  MongoDB    │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+       │                   │                   │                   │
+       │                   ▼                   ▼                   ▼
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│ Drag & Drop │    │ State Mgmt  │    │ GA Engine   │    │ Collections │
+│ Validation  │    │ Conflict    │    │ Validation  │    │ Indexing    │
+│ Export      │    │ Detection   │    │ Export      │    │ Aggregation │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+```
+
+### Security Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    SECURITY LAYERS                          │
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │   JWT Auth  │  │ Role-Based  │  │ Input       │        │
+│  │   Tokens    │  │ Access      │  │ Validation  │        │
+│  │             │  │ Control     │  │             │        │
+│  └─────────────┘  └─────────────┘  └─────────────┘        │
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │ Password    │  │ CORS        │  │ Rate        │        │
+│  │ Hashing     │  │ Protection  │  │ Limiting    │        │
+│  │ (bcrypt)    │  │             │  │             │        │
+│  └─────────────┘  └─────────────┘  └─────────────┘        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Performance Optimization
+
+#### 1. **Database Optimization**
+```javascript
+// Compound Indexes
+indexes: {
+  timetable_entries: { day: 1, period: 1, teacher: 1 },
+  teacher_availability: { teacher: 1, day: 1 },
+  class_schedule: { class: 1, day: 1, period: 1 }
+}
+
+// Aggregation Pipelines
+aggregations: {
+  teacher_workload: pipeline([match, group, sort]),
+  conflict_detection: pipeline([lookup, unwind, match]),
+  semester_progress: pipeline([group, project, sort])
+}
+```
+
+#### 2. **Frontend Optimization**
+```javascript
+// State Management
+optimizations: {
+  lazy_loading: "React.lazy() for route components",
+  memoization: "React.memo() for expensive renders",
+  virtual_scrolling: "Large dataset handling",
+  debounced_search: "Real-time filtering"
+}
+
+// Caching Strategy
+caching: {
+  api_responses: "React Query for server state",
+  computed_values: "useMemo for calculations",
+  static_assets: "Service Worker caching"
+}
+```
+
+### Scalability Design
+
+#### 1. **Horizontal Scaling**
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│ Load        │    │ App Server  │    │ App Server  │
+│ Balancer    │───▶│ Instance 1  │    │ Instance 2  │
+│ (Nginx)     │    │             │    │             │
+└─────────────┘    └─────────────┘    └─────────────┘
+       │                   │                   │
+       │                   └─────────┬─────────┘
+       │                             │
+       ▼                             ▼
+┌─────────────┐              ┌─────────────┐
+│ MongoDB     │              │ Redis       │
+│ Replica Set │              │ Cache       │
+│             │              │             │
+└─────────────┘              └─────────────┘
+```
+
+#### 2. **Microservices Architecture (Future)**
+```
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│   Auth      │  │ Timetable   │  │ Notification│  │   Export    │
+│  Service    │  │  Service    │  │   Service   │  │  Service    │
+│             │  │             │  │             │  │             │
+└─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘
+       │                │                │                │
+       └────────────────┼────────────────┼────────────────┘
+                        │                │
+                ┌─────────────┐  ┌─────────────┐
+                │   Message   │  │   API       │
+                │   Queue     │  │  Gateway    │
+                │  (RabbitMQ) │  │  (Kong)     │
+                └─────────────┘  └─────────────┘
+```
+
+### Algorithm Complexity Analysis
+
+#### 1. **Genetic Algorithm**
+```
+Time Complexity:
+- Population Generation: O(P × L) where P = population size, L = lessons
+- Fitness Evaluation: O(P × L × C) where C = constraints
+- Selection: O(P × log P)
+- Crossover & Mutation: O(P × L)
+- Overall per generation: O(P × L × C)
+- Total: O(G × P × L × C) where G = generations
+
+Space Complexity: O(P × L) for population storage
+
+Optimization Strategies:
+- Early termination on fitness threshold
+- Elitism to preserve best solutions
+- Adaptive mutation rates
+- Parallel fitness evaluation
+```
+
+#### 2. **Conflict Detection**
+```
+Time Complexity:
+- Teacher conflicts: O(L) where L = total lessons
+- Classroom conflicts: O(L)
+- Class conflicts: O(L)
+- Alternative slot finding: O(D × P × L) where D = days, P = periods
+
+Optimization:
+- Hash maps for O(1) lookups
+- Indexed database queries
+- Memoization of conflict checks
+```
+
+### Deployment Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    PRODUCTION ENVIRONMENT                   │
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │   CDN       │  │ Load        │  │ SSL         │        │
+│  │ (Cloudflare)│  │ Balancer    │  │ Certificate │        │
+│  │             │  │ (Nginx)     │  │ (Let's      │        │
+│  └─────────────┘  └─────────────┘  │ Encrypt)    │        │
+│                                     └─────────────┘        │
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │ Frontend    │  │ Backend     │  │ Database    │        │
+│  │ (Vercel/    │  │ (Railway/   │  │ (MongoDB    │        │
+│  │ Netlify)    │  │ Heroku)     │  │ Atlas)      │        │
+│  └─────────────┘  └─────────────┘  └─────────────┘        │
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │ Monitoring  │  │ Logging     │  │ Backup      │        │
+│  │ (DataDog)   │  │ (Winston)   │  │ (Automated) │        │
+│  └─────────────┘  └─────────────┘  └─────────────┘        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Error Handling & Recovery
+
+```javascript
+// Graceful Error Handling
+errorHandling: {
+  frontend: {
+    errorBoundaries: "React Error Boundaries",
+    fallbackUI: "User-friendly error messages",
+    retryMechanism: "Automatic retry for failed requests"
+  },
+  
+  backend: {
+    globalErrorHandler: "Express error middleware",
+    validationErrors: "Joi schema validation",
+    databaseErrors: "Mongoose error handling"
+  },
+  
+  algorithm: {
+    fallbackStrategies: "Multiple GA approaches",
+    constraintRelaxation: "Gradual constraint loosening",
+    manualOverride: "Admin intervention capability"
+  }
+}
+```
+
+### Future Enhancements
+
+1. **AI/ML Integration**
+   - Machine Learning for pattern recognition
+   - Predictive analytics for optimal scheduling
+   - Natural Language Processing for requirement parsing
+
+2. **Real-time Collaboration**
+   - WebSocket integration for live updates
+   - Multi-user editing capabilities
+   - Real-time conflict resolution
+
+3. **Mobile Application**
+   - React Native mobile app
+   - Offline capability with sync
+   - Push notifications for schedule changes
+
+4. **Advanced Analytics**
+   - Resource utilization reports
+   - Teacher workload analytics
+   - Student performance correlation
 
 ## Genetic Algorithm Details
 - **Selection**: Tournament selection (k=3) picks the best candidates for reproduction.
@@ -263,13 +597,19 @@ To efficiently develop and maintain **ChronoGen**, tasks are divided into four s
 | GET/POST/PUT/DELETE | /api/classes                         | CRUD classes               |
 | GET/POST/PUT/DELETE | /api/classrooms                      | CRUD classrooms            |
 | GET/POST/PUT/DELETE | /api/timeslots                       | CRUD timeslot config       |
-| POST                | /api/timetable/generate              | Run GA & generate timetable|
+| POST                | /api/timetable/generate              | Run hybrid GA & generate   |
 | GET                 | /api/timetable                       | List all timetables        |
 | GET                 | /api/timetable/:id                   | Get timetable              |
-| PUT                 | /api/timetable/:id/entry             | Update timetable entry     |
-| GET                 | /api/timetable/:id/teacher-dashboard | Teacher workload           |
+| PUT                 | /api/timetable/:id/entries           | Update timetable entries   |
+| PUT                 | /api/timetable/:id/name              | Update timetable name      |
+| GET                 | /api/timetable/:id/teacher-dashboard | Teacher workload analysis  |
+| GET/POST/PUT/DELETE | /api/semesters                       | CRUD semester planning     |
+| POST                | /api/semesters/:id/holidays          | Add holidays to semester   |
+| POST                | /api/semesters/:id/generate-timetable| Generate semester timetable|
+| GET                 | /api/semesters/:id/weekly-timetables | Get weekly timetables      |
 | GET/POST/PUT/DELETE | /api/schedules                       | CRUD personal/exam schedules|
 | GET/POST/PUT/DELETE | /api/substitutes                     | CRUD substitute assignments|
+| GET                 | /api/substitutes/timetable/:id       | Get timetable with subs    |
 | POST                | /api/substitutes/auto-assign         | Auto-assign substitutes    |
 | GET/POST/PUT/DELETE | /api/unavailability                  | CRUD teacher unavailability|
 | POST                | /api/unavailability/conflicts        | Check unavailability conflicts|
