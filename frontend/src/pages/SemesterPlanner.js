@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Calendar, Plus, AlertTriangle, CheckCircle, Clock, BarChart3, Settings, Trash2, Edit2 } from 'lucide-react';
+import { Calendar, Plus, AlertTriangle, CheckCircle, Clock, BarChart3, Settings, Trash2, Edit2, Wand2, Eye } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
+import HolidayCalendar from '../components/HolidayCalendar';
 
 export default function SemesterPlanner() {
   const [semesters, setSemesters] = useState([]);
@@ -42,12 +43,22 @@ export default function SemesterPlanner() {
     endDate: '',
     type: 'institutional'
   });
+  
   const [selectedDates, setSelectedDates] = useState([]);
   const [bulkHolidayMode, setBulkHolidayMode] = useState(false);
+  const [weeklyTimetables, setWeeklyTimetables] = useState([]);
+  const [showWeeklyView, setShowWeeklyView] = useState(false);
+  const [selectedWeek, setSelectedWeek] = useState(null);
 
   useEffect(() => {
     loadSemesters();
   }, []);
+  
+  useEffect(() => {
+    if (selectedSemester) {
+      loadWeeklyTimetables();
+    }
+  }, [selectedSemester]);
 
   const loadSemesters = async () => {
     try {
@@ -61,6 +72,60 @@ export default function SemesterPlanner() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const generateSemesterTimetable = async () => {
+    if (!selectedSemester) return;
+    
+    try {
+      setLoading(true);
+      const response = await api.post(`/semesters/${selectedSemester._id}/generate-timetable`);
+      toast.success('Semester timetable generated successfully!');
+      
+      // Load weekly timetables
+      loadWeeklyTimetables();
+      
+      // Show generation results
+      const result = response.data;
+      const message = `Timetable Generated Successfully!
+
+• Total Weeks: ${result.totalWeeks}
+• Missed Classes: ${result.totalMissedClasses}
+• Compensation: ${result.compensationStrategy}
+
+View weekly timetables to see the complete schedule.`;
+      
+      alert(message);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to generate timetable');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const loadWeeklyTimetables = async () => {
+    if (!selectedSemester) return;
+    
+    try {
+      const response = await api.get(`/semesters/${selectedSemester._id}/weekly-timetables`);
+      setWeeklyTimetables(response.data);
+    } catch (err) {
+      console.error('Failed to load weekly timetables:', err);
+    }
+  };
+  
+  const toggleDateSelection = (dateString) => {
+    setSelectedDates(prev => {
+      if (prev.includes(dateString)) {
+        return prev.filter(d => d !== dateString);
+      } else {
+        return [...prev, dateString];
+      }
+    });
+  };
+  
+  const clearSelectedDates = () => {
+    setSelectedDates([]);
   };
 
   const saveSemester = async (e) => {
@@ -119,6 +184,18 @@ export default function SemesterPlanner() {
       setBulkHolidayMode(false);
       setShowModal(false);
       loadSemesters();
+      
+      // Show impact analysis
+      const impactMessage = `${selectedDates.length} holidays added successfully!
+
+These holidays will be automatically considered when generating the semester timetable. Missed classes will be:
+• Rescheduled to available slots in the same week
+• Moved to Saturday if no weekday slots available
+• Tracked for syllabus completion
+
+Generate the semester timetable to see the complete schedule with automatic compensation.`;
+      
+      alert(impactMessage);
     } catch (err) {
       toast.error('Failed to add some holidays');
     }
@@ -130,42 +207,6 @@ export default function SemesterPlanner() {
     const monthName = date.toLocaleDateString('en-US', { month: 'long' });
     const day = date.getDate();
     return `Holiday - ${dayName}, ${monthName} ${day}`;
-  };
-  
-  const generateCalendarDates = () => {
-    if (!selectedSemester) return [];
-    
-    const start = new Date(selectedSemester.startDate);
-    const end = new Date(selectedSemester.endDate);
-    const dates = [];
-    
-    for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
-      dates.push(new Date(date));
-    }
-    
-    return dates;
-  };
-  
-  const toggleDateSelection = (dateString) => {
-    setSelectedDates(prev => {
-      if (prev.includes(dateString)) {
-        return prev.filter(d => d !== dateString);
-      } else {
-        return [...prev, dateString];
-      }
-    });
-  };
-  
-  const isDateSelected = (dateString) => selectedDates.includes(dateString);
-  
-  const isDateHoliday = (dateString) => {
-    if (!selectedSemester?.holidays) return false;
-    return selectedSemester.holidays.some(holiday => {
-      const holidayStart = new Date(holiday.startDate).toDateString();
-      const holidayEnd = new Date(holiday.endDate).toDateString();
-      const checkDate = new Date(dateString).toDateString();
-      return checkDate >= holidayStart && checkDate <= holidayEnd;
-    });
   };
 
   const showImpactAnalysis = (impact) => {
@@ -301,6 +342,12 @@ Redistribution suggestions available.`;
                 <div className="card-header">
                   <span className="card-title">{selectedSemester.name}</span>
                   <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-success btn-sm" onClick={generateSemesterTimetable}>
+                      <Wand2 size={14} /> Generate Timetable
+                    </button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setShowWeeklyView(!showWeeklyView)}>
+                      <Eye size={14} /> {showWeeklyView ? 'Hide' : 'View'} Weekly
+                    </button>
                     <button className="btn btn-secondary btn-sm" onClick={() => openModal('semester', selectedSemester)}>
                       <Edit2 size={14} /> Edit
                     </button>
@@ -400,6 +447,61 @@ Redistribution suggestions available.`;
                   </div>
                 )}
               </div>
+              
+              {/* Weekly Timetables View */}
+              {showWeeklyView && weeklyTimetables.length > 0 && (
+                <div className="card" style={{ marginTop: 16 }}>
+                  <div className="card-header">
+                    <span className="card-title">Weekly Timetables ({weeklyTimetables.length} weeks)</span>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+                    {weeklyTimetables.map(week => {
+                      const compensationClasses = week.entries?.filter(e => e.isCompensation).length || 0;
+                      const saturdayClasses = week.entries?.filter(e => e.isSaturdayClass).length || 0;
+                      const totalClasses = week.entries?.length || 0;
+                      
+                      return (
+                        <div key={week.weekNumber} className="card" style={{ margin: 0 }}>
+                          <div className="card-header">
+                            <span className="card-title">Week {week.weekNumber}</span>
+                            <span className={`badge ${
+                              week.status === 'completed' ? 'badge-green' :
+                              week.status === 'in_progress' ? 'badge-yellow' : 'badge-secondary'
+                            }`}>
+                              {week.status}
+                            </span>
+                          </div>
+                          
+                          <div style={{ padding: 12, fontSize: '0.9rem' }}>
+                            <p><strong>Period:</strong> {new Date(week.weekStartDate).toLocaleDateString()} - {new Date(week.weekEndDate).toLocaleDateString()}</p>
+                            <p><strong>Total Classes:</strong> {totalClasses}</p>
+                            {compensationClasses > 0 && (
+                              <p style={{ color: '#ea580c' }}><strong>Compensations:</strong> {compensationClasses}</p>
+                            )}
+                            {saturdayClasses > 0 && (
+                              <p style={{ color: '#7c3aed' }}><strong>Saturday Classes:</strong> {saturdayClasses}</p>
+                            )}
+                            {week.holidaysInWeek && week.holidaysInWeek.length > 0 && (
+                              <p style={{ color: '#dc2626' }}><strong>Holidays:</strong> {week.holidaysInWeek.join(', ')}</p>
+                            )}
+                          </div>
+                          
+                          <div style={{ padding: '0 12px 12px' }}>
+                            <button 
+                              className="btn btn-primary btn-sm" 
+                              style={{ width: '100%' }}
+                              onClick={() => setSelectedWeek(week)}
+                            >
+                              View Details
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="card">
@@ -426,6 +528,35 @@ Redistribution suggestions available.`;
                 ×
               </button>
             </div>
+            
+            {modalType === 'calendar' && (
+              <div>
+                <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8 }}>
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: '#1e40af' }}>
+                    📅 Select multiple dates from the calendar below to add as holidays
+                  </p>
+                </div>
+                
+                <HolidayCalendar
+                  startDate={selectedSemester?.startDate}
+                  endDate={selectedSemester?.endDate}
+                  existingHolidays={selectedSemester?.holidays || []}
+                  selectedDates={selectedDates}
+                  onDateToggle={toggleDateSelection}
+                  onClearAll={clearSelectedDates}
+                />
+                
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={addBulkHolidays}
+                    disabled={selectedDates.length === 0}
+                  >
+                    Add {selectedDates.length} Holidays
+                  </button>
+                </div>
+              </div>
+            )}
             
             {modalType === 'semester' && (
               <form onSubmit={saveSemester}>
@@ -465,93 +596,6 @@ Redistribution suggestions available.`;
                   {selectedSemester ? 'Update Semester' : 'Create Semester'}
                 </button>
               </form>
-            )}
-            
-            {modalType === 'calendar' && (
-              <div>
-                <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8 }}>
-                  <p style={{ margin: 0, fontSize: '0.9rem', color: '#1e40af' }}>
-                    📅 Click on dates to select/deselect holidays. Selected: {selectedDates.length} dates
-                  </p>
-                </div>
-                
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(7, 1fr)', 
-                  gap: 4, 
-                  marginBottom: 16,
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  textAlign: 'center',
-                  color: '#64748b'
-                }}>
-                  <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-                </div>
-                
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(7, 1fr)', 
-                  gap: 4, 
-                  maxHeight: 300, 
-                  overflowY: 'auto',
-                  marginBottom: 16
-                }}>
-                  {generateCalendarDates().map(date => {
-                    const dateString = date.toISOString().split('T')[0];
-                    const isSelected = isDateSelected(dateString);
-                    const isHoliday = isDateHoliday(dateString);
-                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                    
-                    return (
-                      <button
-                        key={dateString}
-                        onClick={() => !isHoliday && toggleDateSelection(dateString)}
-                        disabled={isHoliday}
-                        style={{
-                          padding: 8,
-                          border: '1px solid #e2e8f0',
-                          borderRadius: 6,
-                          background: isHoliday ? '#fee2e2' : 
-                                     isSelected ? '#dbeafe' : 
-                                     isWeekend ? '#f8fafc' : '#fff',
-                          color: isHoliday ? '#dc2626' :
-                                isSelected ? '#1d4ed8' :
-                                isWeekend ? '#64748b' : '#1e293b',
-                          cursor: isHoliday ? 'not-allowed' : 'pointer',
-                          fontSize: '0.8rem',
-                          fontWeight: isSelected ? 600 : 400,
-                          opacity: isHoliday ? 0.6 : 1
-                        }}
-                      >
-                        {date.getDate()}
-                        {isHoliday && <div style={{ fontSize: '0.6rem' }}>Holiday</div>}
-                      </button>
-                    );
-                  })}
-                </div>
-                
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                    🟦 Selected    🟥 Existing Holiday    ⬜ Weekend
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button 
-                      className="btn btn-secondary" 
-                      onClick={() => setSelectedDates([])}
-                      disabled={selectedDates.length === 0}
-                    >
-                      Clear All
-                    </button>
-                    <button 
-                      className="btn btn-primary" 
-                      onClick={addBulkHolidays}
-                      disabled={selectedDates.length === 0}
-                    >
-                      Add {selectedDates.length} Holidays
-                    </button>
-                  </div>
-                </div>
-              </div>
             )}
             
             {modalType === 'holiday' && (
