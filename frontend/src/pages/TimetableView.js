@@ -70,45 +70,68 @@ export default function TimetableView() {
       return tt.entries;
     }
     
-    console.log('Applying substitutes:', substitutes);
-    console.log('Original entries:', tt.entries);
+    console.log('🔄 Applying substitutes:', substitutes);
+    console.log('📋 Original entries:', tt.entries);
     
     return tt.entries.map(entry => {
-      console.log('Checking entry:', {
+      console.log('🔍 Checking entry:', {
         day: entry.day,
         period: entry.period,
-        class: entry.class?._id,
+        classId: entry.class?._id,
         className: entry.class?.name,
-        teacher: entry.teacher?.name,
-        subject: entry.subject?.name
+        teacherId: entry.teacher?._id,
+        teacherName: entry.teacher?.name,
+        subjectName: entry.subject?.name
       });
       
       const substitute = substitutes.find(sub => {
-        console.log('Comparing with substitute:', {
+        console.log('🔄 Comparing with substitute:', {
           originalDay: sub.originalEntry?.day,
           originalPeriod: sub.originalEntry?.period,
-          originalClass: sub.originalEntry?.class,
+          originalClassId: sub.originalEntry?.class?._id || sub.originalEntry?.class,
+          originalTeacherId: sub.originalEntry?.teacher?._id || sub.originalEntry?.teacher,
           timetableId: sub.timetableId,
           status: sub.status,
-          substituteTeacher: sub.substituteTeacher?.name,
-          isLibrary: sub.isLibrary,
-          fullSubstitute: sub
+          substituteTeacherId: sub.substituteTeacher?._id,
+          substituteTeacherName: sub.substituteTeacher?.name,
+          isLibrary: sub.isLibrary
         });
         
-        // Try multiple matching strategies
+        // Match day and period
         const dayMatch = sub.originalEntry?.day === entry.day;
         const periodMatch = sub.originalEntry?.period === entry.period;
-        const classMatch = sub.originalEntry?.class === entry.class?._id || 
-                          sub.originalEntry?.class?._id === entry.class?._id;
+        
+        // Match class ID - handle both ObjectId and string formats
+        const entryClassId = entry.class?._id?.toString();
+        const subClassId = (sub.originalEntry?.class?._id || sub.originalEntry?.class)?.toString();
+        const classMatch = entryClassId === subClassId;
+        
+        // Match teacher ID - handle both ObjectId and string formats  
+        const entryTeacherId = entry.teacher?._id?.toString();
+        const subTeacherId = (sub.originalEntry?.teacher?._id || sub.originalEntry?.teacher)?.toString();
+        const teacherMatch = entryTeacherId === subTeacherId;
+        
+        // Status must be approved
         const statusMatch = sub.status === 'approved';
         
-        console.log('Match results:', { dayMatch, periodMatch, classMatch, statusMatch });
+        console.log('🎯 Match results:', { 
+          dayMatch, 
+          periodMatch, 
+          classMatch: `${entryClassId} === ${subClassId} = ${classMatch}`,
+          teacherMatch: `${entryTeacherId} === ${subTeacherId} = ${teacherMatch}`,
+          statusMatch 
+        });
         
-        return dayMatch && periodMatch && classMatch && statusMatch;
+        return dayMatch && periodMatch && classMatch && teacherMatch && statusMatch;
       });
       
       if (substitute) {
-        console.log('✅ Found substitute match for entry:', entry, 'with substitute:', substitute);
+        console.log('✅ SUBSTITUTE MATCH FOUND!', {
+          entry: entry,
+          substitute: substitute,
+          newTeacher: substitute.substituteTeacher?.name
+        });
+        
         if (substitute.isLibrary) {
           return {
             ...entry,
@@ -124,7 +147,7 @@ export default function TimetableView() {
           };
         }
       } else {
-        console.log('❌ No substitute found for entry:', entry);
+        console.log('❌ No substitute found for entry');
       }
       
       return entry;
