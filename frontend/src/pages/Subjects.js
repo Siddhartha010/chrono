@@ -11,6 +11,7 @@ export default function Subjects() {
   const [form, setForm] = useState(empty);
   const [editing, setEditing] = useState(null);
   const [selectedCourse, setSelectedCourse] = useState('');
+  const [selectedCourses, setSelectedCourses] = useState(new Set());
   const [selectedItems, setSelectedItems] = useState(new Set());
   const [selectAll, setSelectAll] = useState(false);
 
@@ -18,6 +19,7 @@ export default function Subjects() {
     setSubjects(r.data);
     setSelectedItems(new Set());
     setSelectAll(false);
+    setSelectedCourses(new Set());
   });
   useEffect(() => { load(); }, []);
 
@@ -64,6 +66,16 @@ export default function Subjects() {
     setSelectAll(false);
   };
 
+  const handleCourseFilter = (course) => {
+    const newSelected = new Set(selectedCourses);
+    if (newSelected.has(course)) {
+      newSelected.delete(course);
+    } else {
+      newSelected.add(course);
+    }
+    setSelectedCourses(newSelected);
+  };
+
   const bulkDelete = async () => {
     if (selectedItems.size === 0) {
       toast.error('No subjects selected');
@@ -89,7 +101,11 @@ export default function Subjects() {
   };
 
   // Filter and group subjects by course
-  const filtered = subjects.filter(s => !selectedCourse || s.course === selectedCourse);
+  const filtered = subjects.filter(s => {
+    const courseMatch = !selectedCourse || s.course === selectedCourse;
+    const checkboxMatch = selectedCourses.size === 0 || selectedCourses.has(s.course);
+    return courseMatch && checkboxMatch;
+  });
   
   const groupedSubjects = filtered.reduce((groups, subject) => {
     const course = subject.course || 'Uncategorized';
@@ -110,6 +126,35 @@ export default function Subjects() {
             {courses.map(course => <option key={course} value={course}>{course}</option>)}
           </select>
           <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Add Subject</button>
+        </div>
+      </div>
+
+      {/* Course Filter Checkboxes */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <span className="card-title">Filter by Courses</span>
+          <button 
+            className="btn btn-secondary btn-sm" 
+            onClick={() => setSelectedCourses(new Set())}
+          >
+            Clear All
+          </button>
+        </div>
+        <div style={{ padding: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+          {courses.map(course => (
+            <label key={course} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={selectedCourses.has(course)}
+                onChange={() => handleCourseFilter(course)}
+                style={{ cursor: 'pointer' }}
+              />
+              <span>{course}</span>
+              <span className="badge badge-secondary">
+                {subjects.filter(s => s.course === course).length}
+              </span>
+            </label>
+          ))}
         </div>
       </div>
 
