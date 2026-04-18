@@ -17,14 +17,15 @@ export default function Dashboard() {
       setLoading(true);
       setError(null);
       
-      const [t, s, c, r, tt, sub, una] = await Promise.all([
+      const [t, s, c, r, tt, sub, una, schedules] = await Promise.all([
         api.get('/teachers'), 
         api.get('/subjects'),
         api.get('/classes'), 
         api.get('/classrooms'),
         api.get('/timetable'), 
         api.get('/substitutes'),
-        api.get('/unavailability')
+        api.get('/unavailability'),
+        api.get('/schedules')
       ]);
       
       setCounts({ 
@@ -36,12 +37,32 @@ export default function Dashboard() {
         unavailabilities: una.data.length
       });
       
-      setTimetables(tt.data.slice(0, 5));
+      // Combine all timetables (regular, personal, and exam schedules)
+      const allTimetables = [
+        ...tt.data.map(timetable => ({
+          ...timetable,
+          type: 'regular',
+          displayName: timetable.name,
+          fitnessScore: timetable.fitnessScore,
+          generation: timetable.generation
+        })),
+        ...schedules.data.map(schedule => ({
+          ...schedule,
+          type: schedule.type, // 'personal' or 'exam'
+          displayName: schedule.title,
+          fitnessScore: null,
+          generation: null
+        }))
+      ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      
+      setTimetables(allTimetables.slice(0, 5));
       setSubstitutes(sub.data.slice(0, 3));
       setUnavailabilities(una.data.slice(0, 3));
       
       console.log('Dashboard loaded:', {
-        timetables: tt.data.length,
+        regularTimetables: tt.data.length,
+        schedules: schedules.data.length,
+        totalTimetables: tt.data.length + schedules.data.length,
         substitutes: sub.data.length,
         unavailabilities: una.data.length
       });
@@ -107,15 +128,20 @@ export default function Dashboard() {
 
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Recent Timetables</span>
-            <button className="btn btn-primary btn-sm" onClick={() => navigate('/generate')}>
-              <Wand2 size={14} /> New
-            </button>
+            <span className="card-title">Recent Timetables & Schedules</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => navigate('/schedules')}>
+                <Clock size={14} /> Schedules
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={() => navigate('/generate')}>
+                <Wand2 size={14} /> New
+              </button>
+            </div>
           </div>
           {timetables.length === 0 ? (
             <div className="empty-state">
               <Clock size={40} />
-              <p>No timetables generated yet. Click "Generate Timetable" to start.</p>
+              <p>No timetables or schedules created yet. Click "Generate Timetable" or "Schedules" to start.</p>
             </div>
           ) : (
             <div className="table-wrap">
@@ -123,6 +149,7 @@ export default function Dashboard() {
                 <thead>
                   <tr>
                     <th>Name</th>
+                    <th>Type</th>
                     <th>Fitness</th>
                     <th>Generation</th>
                     <th>Created</th>
@@ -134,16 +161,38 @@ export default function Dashboard() {
                     console.log('Rendering timetable:', tt);
                     return (
                       <tr key={tt._id}>
-                        <td><strong>{tt.name}</strong></td>
+                        <td><strong>{tt.displayName}</strong></td>
                         <td>
-                          <span className={`fitness-badge ${fitnessClass(tt.fitnessScore)}`}>
-                            {tt.fitnessScore}%
+                          <span className={`badge ${
+                            tt.type === 'regular' ? 'badge-blue' :
+                            tt.type === 'exam' ? 'badge-red' : 'badge-green'
+                          }`}>
+                            {tt.type === 'regular' ? 'Timetable' :
+                             tt.type === 'exam' ? 'Exam Schedule' : 'Personal Schedule'}
                           </span>
+                        </td>
+                        <td>
+                          {tt.fitnessScore !== null ? (
+                            <span className={`fitness-badge ${fitnessClass(tt.fitnessScore)}`}>
+                              {tt.fitnessScore}%
+                            </span>
+                          ) : (
+                            <span className="badge badge-secondary">N/A</span>
+                          )}
                         </td>
                         <td>{tt.generation || 'N/A'}</td>
                         <td>{tt.createdAt ? new Date(tt.createdAt).toLocaleDateString() : 'N/A'}</td>
                         <td>
-                          <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/timetable/${tt._id}`)}>
+                          <button 
+                            className="btn btn-secondary btn-sm" 
+                            onClick={() => {
+                              if (tt.type === 'regular') {
+                                navigate(`/timetable/${tt._id}`);
+                              } else {
+                                navigate('/schedules');
+                              }
+                            }}
+                          >
                             View
                           </button>
                         </td>
