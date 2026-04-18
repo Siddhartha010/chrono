@@ -28,31 +28,21 @@ export default function Dashboard() {
         api.get('/schedules')
       ]);
       
-      // Get timetables with their latest substitute information
-      const timetablesWithSubs = await Promise.all(
-        tt.data.map(async (timetable) => {
-          try {
-            // Get substitutes for this timetable
-            const timetableSubs = sub.data.filter(substitute => 
-              substitute.timetableId === timetable._id
-            );
-            
-            // Find the most recent substitute for this timetable
-            const latestSub = timetableSubs.length > 0 
-              ? timetableSubs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0]
-              : null;
-            
-            return {
-              ...timetable,
-              hasSubstitutes: timetableSubs.length > 0,
-              substituteCount: timetableSubs.length,
-              lastUpdated: latestSub ? latestSub.createdAt : timetable.updatedAt || timetable.createdAt
-            };
-          } catch (err) {
-            return timetable;
-          }
-        })
-      );
+      // Get timetables with their substitute information
+      const timetablesWithSubs = tt.data.map(timetable => {
+        const timetableSubs = sub.data.filter(substitute => 
+          substitute.timetableId === timetable._id
+        );
+        
+        return {
+          ...timetable,
+          hasSubstitutes: timetableSubs.length > 0,
+          substituteCount: timetableSubs.length,
+          latestSubstitute: timetableSubs.length > 0 
+            ? timetableSubs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0]
+            : null
+        };
+      });
       
       setCounts({ 
         teachers: t.data.length, 
@@ -63,24 +53,40 @@ export default function Dashboard() {
         unavailabilities: una.data.length
       });
       
-      // Combine all timetables (regular with substitutes, personal, and exam schedules)
-      const allTimetables = [
-        ...timetablesWithSubs.map(timetable => ({
+      // Create separate entries for original timetables and updated timetables with substitutes
+      const originalTimetables = timetablesWithSubs.map(timetable => ({
+        ...timetable,
+        type: 'regular',
+        displayName: timetable.name,
+        fitnessScore: timetable.fitnessScore,
+        generation: timetable.generation,
+        isOriginal: true
+      }));
+      
+      const updatedTimetables = timetablesWithSubs
+        .filter(timetable => timetable.hasSubstitutes)
+        .map(timetable => ({
           ...timetable,
-          type: 'regular',
-          displayName: timetable.hasSubstitutes 
-            ? `${timetable.name} (${timetable.substituteCount} substitutes)`
-            : timetable.name,
+          _id: `${timetable._id}_updated`, // Create unique ID for updated version
+          type: 'updated',
+          displayName: `${timetable.name} (with ${timetable.substituteCount} substitutes)`,
           fitnessScore: timetable.fitnessScore,
           generation: timetable.generation,
-          createdAt: timetable.lastUpdated // Use last updated time for sorting
-        })),
+          createdAt: timetable.latestSubstitute.createdAt, // Use substitute creation time
+          isOriginal: false
+        }));
+      
+      // Combine all timetables (original, updated with substitutes, personal, and exam schedules)
+      const allTimetables = [
+        ...originalTimetables,
+        ...updatedTimetables,
         ...schedules.data.map(schedule => ({
           ...schedule,
           type: schedule.type, // 'personal' or 'exam'
           displayName: schedule.title,
           fitnessScore: null,
-          generation: null
+          generation: null,
+          isOriginal: true
         }))
       ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       
@@ -89,10 +95,10 @@ export default function Dashboard() {
       setUnavailabilities(una.data.slice(0, 3));
       
       console.log('Dashboard loaded:', {
-        regularTimetables: tt.data.length,
-        timetablesWithSubstitutes: timetablesWithSubs.filter(t => t.hasSubstitutes).length,
+        originalTimetables: originalTimetables.length,
+        updatedTimetables: updatedTimetables.length,
         schedules: schedules.data.length,
-        totalTimetables: tt.data.length + schedules.data.length,
+        totalEntries: allTimetables.length,
         substitutes: sub.data.length,
         unavailabilities: una.data.length
       });
@@ -194,11 +200,12 @@ export default function Dashboard() {
                         <td><strong>{tt.displayName}</strong></td>
                         <td>
                           <span className={`badge ${
-                            tt.type === 'regular' ? (tt.hasSubstitutes ? 'badge-purple' : 'badge-blue') :
+                            tt.type === 'regular' ? 'badge-blue' :
+                            tt.type === 'updated' ? 'badge-purple' :
                             tt.type === 'exam' ? 'badge-red' : 'badge-green'
                           }`}>
-                            {tt.type === 'regular' ? 
-                              (tt.hasSubstitutes ? 'Timetable (Updated)' : 'Timetable') :
+                            {tt.type === 'regular' ? 'Original Timetable' :
+                             tt.type === 'updated' ? 'Updated Timetable' :
                              tt.type === 'exam' ? 'Exam Schedule' : 'Personal Schedule'}
                           </span>
                         </td>
@@ -217,8 +224,10 @@ export default function Dashboard() {
                           <button 
                             className="btn btn-secondary btn-sm" 
                             onClick={() => {
-                              if (tt.type === 'regular') {
-                                navigate(`/timetable/${tt._id}`);
+                              if (tt.type === 'regular' || tt.type === 'updated') {
+                                // For updated timetables, use the original ID
+                                const timetableId = tt.type === 'updated' ? tt._id.replace('_updated', '') : tt._id;
+                                navigate(`/timetable/${timetableId}`);
                               } else {
                                 navigate('/schedules');
                               }
