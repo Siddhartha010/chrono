@@ -82,6 +82,27 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
+// Update timetable name
+router.put('/:id/name', auth, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'Name is required' });
+    }
+    
+    const timetable = await Timetable.findOneAndUpdate(
+      { _id: req.params.id, createdBy: req.user.id },
+      { name: name.trim() },
+      { new: true }
+    );
+    
+    if (!timetable) return res.status(404).json({ message: 'Timetable not found' });
+    res.json({ name: timetable.name });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // Delete timetable
 router.delete('/:id', auth, async (req, res) => {
   await Timetable.findOneAndDelete({ _id: req.params.id, createdBy: req.user.id });

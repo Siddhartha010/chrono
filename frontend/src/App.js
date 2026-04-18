@@ -15,6 +15,7 @@ import TimetableView from './pages/TimetableView';
 import TeacherDashboard from './pages/TeacherDashboard';
 import PersonalScheduler from './pages/PersonalScheduler';
 import ExamScheduler from './pages/ExamScheduler';
+import UnavailabilityManager from './pages/UnavailabilityManager';
 import SubstituteManager from './pages/SubstituteManager';
 
 function PrivateRoute({ children }) {
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="personal-scheduler" element={<PersonalScheduler />} />
             <Route path="exam-scheduler" element={<ExamScheduler />} />
             <Route path="substitute-manager" element={<SubstituteManager />} />
+            <Route path="unavailability-manager" element={<UnavailabilityManager />} />
           </Route>
         </Routes>
       </BrowserRouter>

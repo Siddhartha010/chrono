@@ -31,11 +31,32 @@ router.post('/find-substitute', auth, async (req, res) => {
       .map(e => e.teacher?._id?.toString())
       .filter(Boolean);
     
+    // Check for unavailable teachers due to approved unavailabilities
+    const TeacherUnavailability = require('../models/TeacherUnavailability');
+    const unavailabilities = await TeacherUnavailability.find({
+      createdBy: req.user.id,
+      status: 'approved',
+      startDate: { $lte: new Date() },
+      endDate: { $gte: new Date() }
+    });
+    
+    const unavailableTeachers = unavailabilities
+      .filter(u => {
+        if (u.isFullDay) return true;
+        if (u.specificSlots && u.specificSlots.length > 0) {
+          const daySlot = u.specificSlots.find(s => s.day === day);
+          return daySlot && daySlot.periods.includes(period);
+        }
+        return true; // If no specific slots, assume full day
+      })
+      .map(u => u.teacher.toString());
+    
     // Get all teachers and filter available ones
     const allTeachers = await Teacher.find({ createdBy: req.user.id });
     const available = allTeachers.filter(t => {
       const tid = t._id.toString();
       if (busyTeachers.includes(tid)) return false;
+      if (unavailableTeachers.includes(tid)) return false;
       
       // Check teacher availability constraints
       if (t.availability && t.availability.length > 0) {
@@ -46,7 +67,11 @@ router.post('/find-substitute', auth, async (req, res) => {
       return true;
     });
     
-    res.json({ available, busyCount: busyTeachers.length });
+    res.json({ 
+      available, 
+      busyCount: busyTeachers.length,
+      unavailableCount: unavailableTeachers.length
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
