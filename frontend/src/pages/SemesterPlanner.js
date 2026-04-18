@@ -4,6 +4,8 @@ import { Calendar, Plus, AlertTriangle, CheckCircle, Clock, BarChart3, Settings,
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import HolidayCalendar from '../components/HolidayCalendar';
+import TimetableResultNotification from '../components/TimetableResultNotification';
+import HolidayImpactNotification from '../components/HolidayImpactNotification';
 
 export default function SemesterPlanner() {
   const navigate = useNavigate();
@@ -52,6 +54,10 @@ export default function SemesterPlanner() {
   const [showWeeklyView, setShowWeeklyView] = useState(false);
   const [selectedSemesters, setSelectedSemesters] = useState(new Set());
   const [selectAll, setSelectAll] = useState(false);
+  const [timetableResult, setTimetableResult] = useState(null);
+  const [showTimetableResult, setShowTimetableResult] = useState(false);
+  const [holidayImpactData, setHolidayImpactData] = useState(null);
+  const [showHolidayImpact, setShowHolidayImpact] = useState(false);
 
   useEffect(() => {
     loadSemesters();
@@ -91,17 +97,10 @@ export default function SemesterPlanner() {
       // Load weekly timetables
       loadWeeklyTimetables();
       
-      // Show generation results
+      // Show generation results in proper notification
       const result = response.data;
-      const message = `Timetable Generated Successfully!
-
-• Total Weeks: ${result.totalWeeks}
-• Missed Classes: ${result.totalMissedClasses}
-• Compensation: ${result.compensationStrategy}
-
-View weekly timetables to see the complete schedule.`;
-      
-      alert(message);
+      setTimetableResult(result);
+      setShowTimetableResult(true);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to generate timetable');
     } finally {
@@ -191,17 +190,9 @@ View weekly timetables to see the complete schedule.`;
       setShowModal(false);
       loadSemesters();
       
-      // Show impact analysis
-      const impactMessage = `${selectedDates.length} holidays added successfully!
-
-These holidays will be automatically considered when generating the semester timetable. Missed classes will be:
-• Rescheduled to available slots in the same week
-• Moved to Saturday if no weekday slots available
-• Tracked for syllabus completion
-
-Generate the semester timetable to see the complete schedule with automatic compensation.`;
-      
-      alert(impactMessage);
+      // Show impact analysis in proper notification
+      setHolidayImpactData(selectedDates.length);
+      setShowHolidayImpact(true);
     } catch (err) {
       toast.error('Failed to add some holidays');
     }
@@ -326,6 +317,16 @@ Redistribution suggestions available.`;
     } catch (err) {
       toast.error('Failed to delete some semesters');
     }
+  };
+
+  const handleViewWeeklyTimetables = () => {
+    setShowTimetableResult(false);
+    setShowWeeklyView(true);
+  };
+
+  const handleGenerateTimetableFromHoliday = () => {
+    setShowHolidayImpact(false);
+    generateSemesterTimetable();
   };
 
   const calculateProgress = (semester) => {
@@ -781,6 +782,24 @@ Redistribution suggestions available.`;
             )}
           </div>
         </div>
+      )}
+      
+      {/* Timetable Result Notification */}
+      {showTimetableResult && (
+        <TimetableResultNotification 
+          result={timetableResult}
+          onClose={() => setShowTimetableResult(false)}
+          onViewWeekly={handleViewWeeklyTimetables}
+        />
+      )}
+      
+      {/* Holiday Impact Notification */}
+      {showHolidayImpact && (
+        <HolidayImpactNotification 
+          holidayCount={holidayImpactData}
+          onClose={() => setShowHolidayImpact(false)}
+          onGenerateTimetable={handleGenerateTimetableFromHoliday}
+        />
       )}
     </div>
   );

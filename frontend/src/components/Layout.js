@@ -3,12 +3,13 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, BookOpen, Building2,
-  Clock, Wand2, LogOut, GraduationCap, CalendarDays, FileText, UserCheck, AlertTriangle, Calendar
+  Clock, Wand2, LogOut, GraduationCap, CalendarDays, FileText, UserCheck, AlertTriangle, Calendar, FileSpreadsheet
 } from 'lucide-react';
 
 const adminNav = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/generate', icon: Wand2, label: 'Generate' },
+  { to: '/excel-import', icon: FileSpreadsheet, label: 'Excel Import' },
   { to: '/teachers', icon: Users, label: 'Teachers' },
   { to: '/subjects', icon: BookOpen, label: 'Subjects' },
   { to: '/classes', icon: GraduationCap, label: 'Course' },
