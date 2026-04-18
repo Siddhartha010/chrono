@@ -21,6 +21,7 @@ app.use('/api/timeslots', require('./routes/timeslots'));
 app.use('/api/timetable', require('./routes/timetable'));
 app.use('/api/export', require('./routes/export'));
 app.use('/api/schedules', require('./routes/schedules'));
+app.use('/api/substitutes', require('./routes/substitutes'));
 
 const PORT = process.env.PORT || 5000;
 

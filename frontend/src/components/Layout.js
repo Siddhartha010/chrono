@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, BookOpen, Building2,
-  Clock, Wand2, LogOut, GraduationCap, CalendarDays, FileText
+  Clock, Wand2, LogOut, GraduationCap, CalendarDays, FileText, UserCheck
 } from 'lucide-react';
 
 const adminNav = [
@@ -16,6 +16,7 @@ const adminNav = [
   { to: '/timeslots', icon: Clock, label: 'Time Slots' },
   { to: '/personal-scheduler', icon: CalendarDays, label: 'My Schedule' },
   { to: '/exam-scheduler', icon: FileText, label: 'Exam Scheduler' },
+  { to: '/substitute-manager', icon: UserCheck, label: 'Substitutes' },
 ];
 
 export default function Layout() {
