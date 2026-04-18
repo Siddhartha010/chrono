@@ -25,6 +25,35 @@ const upload = multer({
   }
 });
 
+// Download Excel template (no auth for testing)
+router.get('/template-test', async (req, res) => {
+  try {
+    // Simple test without ExcelService
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    
+    const sheet = workbook.addWorksheet('Test');
+    sheet.columns = [
+      { header: 'Name', key: 'name', width: 20 },
+      { header: 'Value', key: 'value', width: 15 }
+    ];
+    
+    sheet.addRows([
+      { name: 'Test 1', value: 'Working' },
+      { name: 'Test 2', value: 'Success' }
+    ]);
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="Test.xlsx"');
+    
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error('Test template error:', error);
+    res.status(500).json({ error: 'Test failed', details: error.message });
+  }
+});
+
 // Download Excel template
 router.get('/template', auth, async (req, res) => {
   try {
