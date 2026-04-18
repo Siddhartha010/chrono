@@ -164,9 +164,22 @@ router.get('/timetable/:id', auth, async (req, res) => {
     const substitutes = await Substitute.find({ 
       timetableId: req.params.id, 
       status: 'approved' 
-    }).populate('substituteTeacher originalEntry.teacher swapWith.teacher');
+    }).populate('substituteTeacher originalEntry.teacher originalEntry.class originalEntry.subject originalEntry.classroom swapWith.teacher');
 
     const timeslot = await Timeslot.findOne({ createdBy: req.user.id });
+    
+    console.log('Backend: Timetable entries:', timetable.entries.length);
+    console.log('Backend: Found substitutes:', substitutes.length);
+    substitutes.forEach((sub, i) => {
+      console.log(`Backend: Substitute ${i}:`, {
+        day: sub.originalEntry?.day,
+        period: sub.originalEntry?.period,
+        classId: sub.originalEntry?.class?._id || sub.originalEntry?.class,
+        teacherId: sub.originalEntry?.teacher?._id || sub.originalEntry?.teacher,
+        substituteTeacher: sub.substituteTeacher?.name,
+        status: sub.status
+      });
+    });
     
     res.json({
       ...timetable.toObject(),
@@ -175,6 +188,7 @@ router.get('/timetable/:id', auth, async (req, res) => {
       periods: timeslot?.periods || []
     });
   } catch (err) {
+    console.error('Backend error:', err);
     res.status(500).json({ message: err.message });
   }
 });
