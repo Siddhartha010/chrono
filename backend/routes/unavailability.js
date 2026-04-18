@@ -52,7 +52,7 @@ router.put('/:id/status', auth, async (req, res) => {
 // Check conflicts for a specific timetable
 router.post('/check-conflicts', auth, async (req, res) => {
   try {
-    const { timetableId, startDate, endDate } = req.body;
+    const { timetableId, startDate, endDate, relevantDays } = req.body;
     
     const timetable = await Timetable.findOne({ _id: timetableId, createdBy: req.user.id })
       .populate('entries.teacher entries.class entries.subject');
@@ -68,8 +68,13 @@ router.post('/check-conflicts', auth, async (req, res) => {
     
     const conflicts = [];
     
-    // Check each timetable entry against unavailabilities
-    for (const entry of timetable.entries) {
+    // Filter timetable entries to only check relevant days
+    const relevantEntries = relevantDays && relevantDays.length > 0 
+      ? timetable.entries.filter(entry => relevantDays.includes(entry.day))
+      : timetable.entries;
+    
+    // Check each relevant timetable entry against unavailabilities
+    for (const entry of relevantEntries) {
       if (!entry.teacher) continue;
       
       const teacherUnavailabilities = unavailabilities.filter(u => 
@@ -77,29 +82,42 @@ router.post('/check-conflicts', auth, async (req, res) => {
       );
       
       for (const unavail of teacherUnavailabilities) {
-        const conflict = {
-          entry,
-          unavailability: unavail,
-          conflictType: unavail.type,
-          needsSubstitute: true
-        };
+        // Check if the unavailability period overlaps with our date range
+        const unavailStart = new Date(unavail.startDate);
+        const unavailEnd = new Date(unavail.endDate);
+        const checkStart = new Date(startDate);
+        const checkEnd = new Date(endDate);
         
-        // Check if specific slots conflict or if it's full day
-        if (unavail.isFullDay) {
-          conflicts.push(conflict);
-        } else if (unavail.specificSlots && unavail.specificSlots.length > 0) {
-          const daySlot = unavail.specificSlots.find(s => s.day === entry.day);
-          if (daySlot && daySlot.periods.includes(entry.period)) {
+        if (unavailStart <= checkEnd && unavailEnd >= checkStart) {
+          const conflict = {
+            entry,
+            unavailability: unavail,
+            conflictType: unavail.type,
+            needsSubstitute: true
+          };
+          
+          // Check if specific slots conflict or if it's full day
+          if (unavail.isFullDay) {
+            conflicts.push(conflict);
+          } else if (unavail.specificSlots && unavail.specificSlots.length > 0) {
+            const daySlot = unavail.specificSlots.find(s => s.day === entry.day);
+            if (daySlot && daySlot.periods.includes(entry.period)) {
+              conflicts.push(conflict);
+            }
+          } else {
+            // If no specific slots, assume full day conflict
             conflicts.push(conflict);
           }
-        } else {
-          // If no specific slots, assume full day conflict
-          conflicts.push(conflict);
         }
       }
     }
     
-    res.json({ conflicts, totalConflicts: conflicts.length });
+    res.json({ 
+      conflicts, 
+      totalConflicts: conflicts.length,
+      checkedDays: relevantDays || [],
+      dateRange: { startDate, endDate }
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
