@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
+import BackendTest from '../components/BackendTest';
 
 export default function ExcelImport() {
   const navigate = useNavigate();
@@ -499,6 +500,8 @@ export default function ExcelImport() {
       </div>
 
       <div style={{ marginTop: 24, maxWidth: 1000 }}>
+        <BackendTest />
+        
         {!backendAvailable && renderBackendNotAvailable()}
         
         {backendAvailable && (
