@@ -38,7 +38,7 @@ app.use('/api/schedules', require('./routes/schedules'));
 app.use('/api/substitutes', require('./routes/substitutes'));
 app.use('/api/unavailability', require('./routes/unavailability'));
 app.use('/api/semesters', require('./routes/semesters'));
-app.use('/api/excel', require('./routes/excel'));
+app.use('/api/excel', require('./routes/excel-simple'));
 
 const PORT = process.env.PORT || 5000;
 
