@@ -585,3 +585,18 @@ tbody tr:hover { background: #f8fafc; }
 .conflict-notification {
   animation: slideInRight 0.3s ease-out;
 }
+/* Drag and Drop Styles */
+.drag-drop-area {
+  transition: all 0.2s ease;
+}
+
+.drag-drop-area:hover {
+  border-color: #3b82f6 !important;
+  background-color: #eff6ff !important;
+}
+
+.drag-active {
+  border-color: #3b82f6 !important;
+  background-color: #eff6ff !important;
+  transform: scale(1.02);
+}
