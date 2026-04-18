@@ -28,9 +28,14 @@ export default function ExcelImport() {
 
   const checkBackendAvailability = async () => {
     try {
-      await api.get('/health');
-      setBackendAvailable(true);
+      const response = await api.get('/health');
+      if (response.data.status === 'ok') {
+        setBackendAvailable(true);
+      } else {
+        setBackendAvailable(false);
+      }
     } catch (error) {
+      console.log('Backend not available:', error.message);
       setBackendAvailable(false);
     }
   };
@@ -42,7 +47,7 @@ export default function ExcelImport() {
     }
 
     try {
-      const response = await api.get('/excel/template/download', {
+      const response = await api.get('/excel/template', {
         responseType: 'blob'
       });
       
