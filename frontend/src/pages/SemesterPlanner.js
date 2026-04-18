@@ -248,12 +248,18 @@ Redistribution suggestions available.`;
     try {
       await api.delete(`/semesters/${id}`);
       toast.success('Semester deleted');
-      loadSemesters();
+      
+      // Clear selection if the deleted semester was selected
       if (selectedSemester?._id === id) {
         setSelectedSemester(null);
+        setWeeklyTimetables([]);
+        setShowWeeklyView(false);
       }
+      
+      // Reload semesters list
+      loadSemesters();
     } catch (err) {
-      toast.error('Failed to delete semester');
+      toast.error(err.response?.data?.message || 'Failed to delete semester');
     }
   };
 
@@ -500,6 +506,7 @@ Redistribution suggestions available.`;
                           <th>End Date</th>
                           <th>Type</th>
                           <th>Duration</th>
+                          <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -522,6 +529,15 @@ Redistribution suggestions available.`;
                                 </span>
                               </td>
                               <td>{duration} day{duration > 1 ? 's' : ''}</td>
+                              <td>
+                                <button 
+                                  className="btn btn-danger btn-sm" 
+                                  onClick={() => deleteHoliday(index)}
+                                  title="Delete Holiday"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </td>
                             </tr>
                           );
                         })}
