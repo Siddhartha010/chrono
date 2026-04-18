@@ -42,6 +42,8 @@ export default function SemesterPlanner() {
     endDate: '',
     type: 'institutional'
   });
+  const [selectedDates, setSelectedDates] = useState([]);
+  const [bulkHolidayMode, setBulkHolidayMode] = useState(false);
 
   useEffect(() => {
     loadSemesters();
@@ -95,6 +97,75 @@ export default function SemesterPlanner() {
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to add holiday');
     }
+  };
+
+  const addBulkHolidays = async () => {
+    if (!selectedSemester || selectedDates.length === 0) return;
+    
+    try {
+      const holidayPromises = selectedDates.map(date => {
+        const holidayName = getHolidayName(date);
+        return api.post(`/semesters/${selectedSemester._id}/holidays`, {
+          name: holidayName,
+          startDate: date,
+          endDate: date,
+          type: 'institutional'
+        });
+      });
+      
+      await Promise.all(holidayPromises);
+      toast.success(`Added ${selectedDates.length} holidays successfully`);
+      setSelectedDates([]);
+      setBulkHolidayMode(false);
+      setShowModal(false);
+      loadSemesters();
+    } catch (err) {
+      toast.error('Failed to add some holidays');
+    }
+  };
+  
+  const getHolidayName = (dateString) => {
+    const date = new Date(dateString);
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+    const monthName = date.toLocaleDateString('en-US', { month: 'long' });
+    const day = date.getDate();
+    return `Holiday - ${dayName}, ${monthName} ${day}`;
+  };
+  
+  const generateCalendarDates = () => {
+    if (!selectedSemester) return [];
+    
+    const start = new Date(selectedSemester.startDate);
+    const end = new Date(selectedSemester.endDate);
+    const dates = [];
+    
+    for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+      dates.push(new Date(date));
+    }
+    
+    return dates;
+  };
+  
+  const toggleDateSelection = (dateString) => {
+    setSelectedDates(prev => {
+      if (prev.includes(dateString)) {
+        return prev.filter(d => d !== dateString);
+      } else {
+        return [...prev, dateString];
+      }
+    });
+  };
+  
+  const isDateSelected = (dateString) => selectedDates.includes(dateString);
+  
+  const isDateHoliday = (dateString) => {
+    if (!selectedSemester?.holidays) return false;
+    return selectedSemester.holidays.some(holiday => {
+      const holidayStart = new Date(holiday.startDate).toDateString();
+      const holidayEnd = new Date(holiday.endDate).toDateString();
+      const checkDate = new Date(dateString).toDateString();
+      return checkDate >= holidayStart && checkDate <= holidayEnd;
+    });
   };
 
   const showImpactAnalysis = (impact) => {
@@ -274,9 +345,14 @@ Redistribution suggestions available.`;
               <div className="card" style={{ marginTop: 16 }}>
                 <div className="card-header">
                   <span className="card-title">Holiday Calendar</span>
-                  <button className="btn btn-primary btn-sm" onClick={() => openModal('holiday')}>
-                    <Plus size={14} /> Add Holiday
-                  </button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => { setBulkHolidayMode(true); openModal('calendar'); }}>
+                      <Calendar size={14} /> Bulk Add
+                    </button>
+                    <button className="btn btn-primary btn-sm" onClick={() => { setBulkHolidayMode(false); openModal('holiday'); }}>
+                      <Plus size={14} /> Add Holiday
+                    </button>
+                  </div>
                 </div>
                 
                 {selectedSemester.holidays && selectedSemester.holidays.length > 0 ? (
@@ -339,11 +415,12 @@ Redistribution suggestions available.`;
 
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: modalType === 'calendar' ? 800 : 480 }}>
             <div className="modal-header">
               <span className="modal-title">
                 {modalType === 'semester' ? (selectedSemester ? 'Edit Semester' : 'New Semester') :
-                 modalType === 'holiday' ? 'Add Holiday' : 'Semester Settings'}
+                 modalType === 'holiday' ? 'Add Holiday' :
+                 modalType === 'calendar' ? 'Select Holiday Dates' : 'Semester Settings'}
               </span>
               <button className="btn btn-secondary btn-sm" onClick={() => setShowModal(false)}>
                 ×
@@ -388,6 +465,93 @@ Redistribution suggestions available.`;
                   {selectedSemester ? 'Update Semester' : 'Create Semester'}
                 </button>
               </form>
+            )}
+            
+            {modalType === 'calendar' && (
+              <div>
+                <div style={{ marginBottom: 16, padding: 12, background: '#f0f9ff', borderRadius: 8 }}>
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: '#1e40af' }}>
+                    📅 Click on dates to select/deselect holidays. Selected: {selectedDates.length} dates
+                  </p>
+                </div>
+                
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(7, 1fr)', 
+                  gap: 4, 
+                  marginBottom: 16,
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  textAlign: 'center',
+                  color: '#64748b'
+                }}>
+                  <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                </div>
+                
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(7, 1fr)', 
+                  gap: 4, 
+                  maxHeight: 300, 
+                  overflowY: 'auto',
+                  marginBottom: 16
+                }}>
+                  {generateCalendarDates().map(date => {
+                    const dateString = date.toISOString().split('T')[0];
+                    const isSelected = isDateSelected(dateString);
+                    const isHoliday = isDateHoliday(dateString);
+                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                    
+                    return (
+                      <button
+                        key={dateString}
+                        onClick={() => !isHoliday && toggleDateSelection(dateString)}
+                        disabled={isHoliday}
+                        style={{
+                          padding: 8,
+                          border: '1px solid #e2e8f0',
+                          borderRadius: 6,
+                          background: isHoliday ? '#fee2e2' : 
+                                     isSelected ? '#dbeafe' : 
+                                     isWeekend ? '#f8fafc' : '#fff',
+                          color: isHoliday ? '#dc2626' :
+                                isSelected ? '#1d4ed8' :
+                                isWeekend ? '#64748b' : '#1e293b',
+                          cursor: isHoliday ? 'not-allowed' : 'pointer',
+                          fontSize: '0.8rem',
+                          fontWeight: isSelected ? 600 : 400,
+                          opacity: isHoliday ? 0.6 : 1
+                        }}
+                      >
+                        {date.getDate()}
+                        {isHoliday && <div style={{ fontSize: '0.6rem' }}>Holiday</div>}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                    🟦 Selected    🟥 Existing Holiday    ⬜ Weekend
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button 
+                      className="btn btn-secondary" 
+                      onClick={() => setSelectedDates([])}
+                      disabled={selectedDates.length === 0}
+                    >
+                      Clear All
+                    </button>
+                    <button 
+                      className="btn btn-primary" 
+                      onClick={addBulkHolidays}
+                      disabled={selectedDates.length === 0}
+                    >
+                      Add {selectedDates.length} Holidays
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
             
             {modalType === 'holiday' && (
