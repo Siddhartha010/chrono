@@ -306,6 +306,8 @@ router.post('/:id/generate-timetable', auth, async (req, res) => {
     const semester = await Semester.findOne({ _id: req.params.id, createdBy: req.user.id });
     if (!semester) return res.status(404).json({ message: 'Semester not found' });
 
+    console.log(`Starting semester timetable generation for: ${semester.name}`);
+
     // Get all required data
     const [classes, teachers, subjects, classrooms, timeslots] = await Promise.all([
       Class.find({ createdBy: req.user.id }).populate('subjects.subject subjects.teacher'),
@@ -315,9 +317,27 @@ router.post('/:id/generate-timetable', auth, async (req, res) => {
       Timeslot.find({ createdBy: req.user.id })
     ]);
 
+    // Validate required data
     if (!timeslots.length) {
-      return res.status(400).json({ message: 'No timeslot configuration found' });
+      return res.status(400).json({ message: 'No timeslot configuration found. Please create a timeslot configuration first.' });
     }
+    if (!classes.length) {
+      return res.status(400).json({ message: 'No classes found. Please create classes first.' });
+    }
+    if (!teachers.length) {
+      return res.status(400).json({ message: 'No teachers found. Please create teachers first.' });
+    }
+    if (!classrooms.length) {
+      return res.status(400).json({ message: 'No classrooms found. Please create classrooms first.' });
+    }
+
+    console.log('Data validation passed:', {
+      classes: classes.length,
+      teachers: teachers.length,
+      subjects: subjects.length,
+      classrooms: classrooms.length,
+      timeslots: timeslots.length
+    });
 
     // Initialize semester timetable generator
     const generator = new SemesterTimetableGenerator(
@@ -331,14 +351,23 @@ router.post('/:id/generate-timetable', auth, async (req, res) => {
     semester.status = 'active';
     await semester.save();
 
+    console.log(`Semester timetable generation completed successfully for: ${semester.name}`);
+
     res.json({
       message: 'Semester timetable generated successfully',
       semester,
       ...result
     });
   } catch (err) {
-    console.error('Semester timetable generation error:', err);
-    res.status(500).json({ message: err.message });
+    console.error('Semester timetable generation error:', {
+      error: err.message,
+      stack: err.stack,
+      semesterId: req.params.id
+    });
+    res.status(500).json({ 
+      message: `Timetable generation failed: ${err.message}`,
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 });
 
