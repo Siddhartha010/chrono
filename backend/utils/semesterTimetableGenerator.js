@@ -5,6 +5,7 @@ const Teacher = require('../models/Teacher');
 const Subject = require('../models/Subject');
 const Classroom = require('../models/Classroom');
 const Timeslot = require('../models/Timeslot');
+const { generateTimetable } = require('./geneticAlgorithm');
 
 class SemesterTimetableGenerator {
   constructor(semester, classes, teachers, subjects, classrooms, timeslots) {
@@ -37,9 +38,10 @@ class SemesterTimetableGenerator {
       
       // Generate base timetable for the week
       const baseSchedule = this.generateWeeklySchedule(weekNumber);
+      const fitnessScore = baseSchedule.fitnessScore || 0;
       
       // Remove classes that fall on holidays
-      const { validEntries, missedEntries } = this.filterHolidayClashes(baseSchedule, holidaysInWeek, week);
+      const { validEntries, missedEntries } = this.filterHolidayClashes(baseSchedule.entries, holidaysInWeek, week);
       
       // Add missed classes to compensation queue
       missedClasses.push(...missedEntries.map(entry => ({
@@ -60,6 +62,7 @@ class SemesterTimetableGenerator {
         entries: compensatedEntries,
         holidaysInWeek: holidaysInWeek,
         compensationsMade: compensatedEntries.filter(e => e.isCompensation).length,
+        fitnessScore: fitnessScore,
         createdBy: this.semester.createdBy
       });
 
@@ -117,26 +120,44 @@ class SemesterTimetableGenerator {
     return weeks;
   }
 
-  // Generate base weekly schedule (same pattern each week)
+  // Generate base weekly schedule using genetic algorithm
   generateWeeklySchedule(weekNumber) {
-    const entries = [];
+    console.log(`Generating schedule for week ${weekNumber} using genetic algorithm`);
     
-    for (const cls of this.classes) {
-      for (const subjectAssignment of cls.subjects) {
-        const subject = subjectAssignment.subject;
-        const teacher = subjectAssignment.teacher;
-        const hoursPerWeek = subject.hoursPerWeek || 3;
-        
-        // Distribute hours across the week
-        const scheduledHours = this.distributeHoursAcrossWeek(
-          cls, subject, teacher, hoursPerWeek, weekNumber
-        );
-        
-        entries.push(...scheduledHours);
+    // Use the genetic algorithm to generate a proper timetable
+    const gaResult = generateTimetable(
+      this.classes,
+      this.teachers,
+      this.subjects,
+      this.classrooms,
+      this.timeslots,
+      {
+        populationSize: 50,
+        generations: 100,
+        mutationRate: 0.1,
+        eliteSize: 5
       }
-    }
+    );
     
-    return entries;
+    // Convert GA result to weekly format
+    const entries = gaResult.entries.map(entry => ({
+      day: entry.day,
+      period: entry.period,
+      class: entry.class,
+      subject: entry.subject,
+      teacher: entry.teacher,
+      classroom: entry.classroom,
+      isCompensation: false,
+      isDoubleClass: false,
+      isSaturdayClass: false
+    }));
+    
+    console.log(`Generated ${entries.length} entries for week ${weekNumber} with fitness ${gaResult.fitnessScore}%`);
+    
+    return {
+      entries: entries,
+      fitnessScore: gaResult.fitnessScore
+    };
   }
 
   // Distribute subject hours across the week

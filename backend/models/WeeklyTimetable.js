@@ -30,6 +30,7 @@ const weeklyTimetableSchema = new mongoose.Schema({
   status: { type: String, enum: ['scheduled', 'in_progress', 'completed'], default: 'scheduled' },
   holidaysInWeek: [{ type: String }], // Holiday names that affected this week
   compensationsMade: { type: Number, default: 0 }, // Number of compensation classes scheduled
+  fitnessScore: { type: Number, default: 0 }, // Timetable quality score
   
   // Syllabus progress for this week
   syllabusProgress: [{
