@@ -31,27 +31,32 @@ export default function TimetableView() {
     const fetchData = async () => {
       try {
         if (isSubstitutesView) {
+          console.log('🔄 FETCHING SUBSTITUTES VIEW for timetable:', id);
           // Fetch timetable with substitutes applied
           const [ttRes, tsRes] = await Promise.all([
             api.get(`/substitutes/timetable/${id}`),
             api.get('/timeslots')
           ]);
+          console.log('📊 SUBSTITUTES API RESPONSE:', ttRes.data);
           setTt(ttRes.data);
           setSubstitutes(ttRes.data.substitutes || []);
           setNewName(ttRes.data.name || 'Generated Timetable');
           if (tsRes.data.length > 0) setTimeslotConfig(tsRes.data[0]);
         } else {
+          console.log('📋 FETCHING REGULAR TIMETABLE for:', id);
           // Fetch regular timetable
           const [ttRes, tsRes] = await Promise.all([
             api.get(`/timetable/${id}`),
             api.get('/timeslots')
           ]);
+          console.log('📊 REGULAR API RESPONSE:', ttRes.data);
           setTt(ttRes.data);
           setNewName(ttRes.data.name || 'Generated Timetable');
           if (tsRes.data.length > 0) setTimeslotConfig(tsRes.data[0]);
         }
         setLoading(false);
       } catch (err) {
+        console.error('❌ API ERROR:', err);
         toast.error('Failed to load');
         setLoading(false);
       }
@@ -454,7 +459,7 @@ export default function TimetableView() {
                       padding: '2px 8px',
                       borderRadius: '12px'
                     }}>
-                      with substitutes
+                      with substitutes ({substitutes.length} found)
                     </span>
                   )}
                 </h2>
