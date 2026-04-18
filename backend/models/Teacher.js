@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const teacherSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String },
+  course: { type: String, required: true }, // BTech, BCS, MCA, etc.
   subjects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subject' }],
   availability: [{
     day: String,

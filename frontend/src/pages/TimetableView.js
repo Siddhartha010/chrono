@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Download, Users, Search, Trash2, RefreshCw, Edit2, Check, X } from 'lucide-react';
+import { Download, Users, Search, Trash2, RefreshCw, Edit2, Check, X, AlertTriangle, Save } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
@@ -18,6 +18,11 @@ export default function TimetableView() {
   const [filterSubject, setFilterSubject] = useState('');
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState('');
+  const [draggedEntry, setDraggedEntry] = useState(null);
+  const [dragOverCell, setDragOverCell] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [pendingChanges, setPendingChanges] = useState([]);
+  const [conflictWarnings, setConflictWarnings] = useState([]);
 
   useEffect(() => {
     Promise.all([
@@ -143,6 +148,153 @@ export default function TimetableView() {
     setEditingName(false);
   };
 
+  const checkConflicts = (sourceEntry, targetDay, targetPeriod) => {
+    const warnings = [];
+    
+    // Check teacher conflicts
+    const teacherConflict = tt.entries.find(e => 
+      e.day === targetDay && 
+      e.period === targetPeriod && 
+      e.teacher?._id === sourceEntry.teacher?._id &&
+      e._id !== sourceEntry._id
+    );
+    if (teacherConflict) {
+      warnings.push({
+        type: 'teacher',
+        message: `${sourceEntry.teacher?.name} is already teaching ${teacherConflict.class?.name} - ${teacherConflict.subject?.name} at this time`
+      });
+    }
+    
+    // Check classroom conflicts
+    const classroomConflict = tt.entries.find(e => 
+      e.day === targetDay && 
+      e.period === targetPeriod && 
+      e.classroom?._id === sourceEntry.classroom?._id &&
+      e._id !== sourceEntry._id
+    );
+    if (classroomConflict) {
+      warnings.push({
+        type: 'classroom',
+        message: `${sourceEntry.classroom?.name} is already occupied by ${classroomConflict.class?.name} - ${classroomConflict.subject?.name}`
+      });
+    }
+    
+    // Check class conflicts
+    const classConflict = tt.entries.find(e => 
+      e.day === targetDay && 
+      e.period === targetPeriod && 
+      e.class?._id === sourceEntry.class?._id &&
+      e._id !== sourceEntry._id
+    );
+    if (classConflict) {
+      warnings.push({
+        type: 'class',
+        message: `${sourceEntry.class?.name} already has ${classConflict.subject?.name} with ${classConflict.teacher?.name} at this time`
+      });
+    }
+    
+    return warnings;
+  };
+
+  const handleDragStart = (e, entry) => {
+    if (!editMode) return;
+    setDraggedEntry(entry);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, day, period) => {
+    if (!editMode || !draggedEntry) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverCell(`${day}-${period}`);
+    
+    // Show conflict warnings
+    const warnings = checkConflicts(draggedEntry, day, period);
+    setConflictWarnings(warnings);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverCell(null);
+    setConflictWarnings([]);
+  };
+
+  const handleDrop = (e, targetDay, targetPeriod) => {
+    if (!editMode || !draggedEntry) return;
+    e.preventDefault();
+    
+    const warnings = checkConflicts(draggedEntry, targetDay, targetPeriod);
+    
+    if (warnings.length > 0) {
+      const proceed = window.confirm(
+        `Warning: This move will cause conflicts:\n\n${warnings.map(w => `• ${w.message}`).join('\n')}\n\nDo you want to proceed anyway?`
+      );
+      if (!proceed) {
+        setDraggedEntry(null);
+        setDragOverCell(null);
+        setConflictWarnings([]);
+        return;
+      }
+    }
+    
+    // Update the entry
+    const updatedEntries = tt.entries.map(entry => {
+      if (entry._id === draggedEntry._id) {
+        return { ...entry, day: targetDay, period: targetPeriod };
+      }
+      return entry;
+    });
+    
+    setTt({ ...tt, entries: updatedEntries });
+    
+    // Track pending changes
+    const changeIndex = pendingChanges.findIndex(c => c.entryId === draggedEntry._id);
+    const newChange = {
+      entryId: draggedEntry._id,
+      originalDay: draggedEntry.day,
+      originalPeriod: draggedEntry.period,
+      newDay: targetDay,
+      newPeriod: targetPeriod,
+      entry: draggedEntry
+    };
+    
+    if (changeIndex >= 0) {
+      const updatedChanges = [...pendingChanges];
+      updatedChanges[changeIndex] = newChange;
+      setPendingChanges(updatedChanges);
+    } else {
+      setPendingChanges([...pendingChanges, newChange]);
+    }
+    
+    setDraggedEntry(null);
+    setDragOverCell(null);
+    setConflictWarnings([]);
+    
+    toast.success('Entry moved. Click Save Changes to apply.');
+  };
+
+  const saveChanges = async () => {
+    if (pendingChanges.length === 0) {
+      toast.error('No changes to save');
+      return;
+    }
+    
+    try {
+      await api.put(`/timetable/${id}/entries`, { changes: pendingChanges });
+      setPendingChanges([]);
+      toast.success('Changes saved successfully');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save changes');
+    }
+  };
+
+  const discardChanges = () => {
+    if (pendingChanges.length === 0) return;
+    
+    if (window.confirm('Discard all unsaved changes?')) {
+      window.location.reload();
+    }
+  };
+
   const del = async () => {
     if (!window.confirm('Delete this timetable?')) return;
     await api.delete(`/timetable/${id}`);
@@ -186,6 +338,22 @@ export default function TimetableView() {
           </span>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button 
+            className={`btn ${editMode ? 'btn-warning' : 'btn-secondary'} btn-sm`} 
+            onClick={() => setEditMode(!editMode)}
+          >
+            <Edit2 size={14} /> {editMode ? 'Exit Edit' : 'Edit Mode'}
+          </button>
+          {editMode && pendingChanges.length > 0 && (
+            <>
+              <button className="btn btn-success btn-sm" onClick={saveChanges}>
+                <Save size={14} /> Save Changes ({pendingChanges.length})
+              </button>
+              <button className="btn btn-danger btn-sm" onClick={discardChanges}>
+                <X size={14} /> Discard
+              </button>
+            </>
+          )}
           <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/teacher-dashboard/${id}`)}>
             <Users size={14} /> Teacher Dashboard
           </button>
@@ -195,6 +363,52 @@ export default function TimetableView() {
           <button className="btn btn-danger btn-sm" onClick={del}><Trash2 size={14} /></button>
         </div>
       </div>
+
+      {/* Conflict Warnings */}
+      {editMode && conflictWarnings.length > 0 && (
+        <div style={{ 
+          marginTop: 16, 
+          background: '#fef2f2', 
+          border: '1px solid #fecaca', 
+          borderRadius: 8, 
+          padding: 12 
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <AlertTriangle size={16} style={{ color: '#dc2626' }} />
+            <span style={{ fontWeight: 600, color: '#dc2626' }}>Potential Conflicts:</span>
+          </div>
+          {conflictWarnings.map((warning, i) => (
+            <div key={i} style={{ 
+              fontSize: '0.8rem', 
+              color: '#7f1d1d', 
+              marginLeft: 24,
+              marginBottom: 4
+            }}>
+              • {warning.message}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Edit Mode Instructions */}
+      {editMode && (
+        <div style={{ 
+          marginTop: 16, 
+          background: '#f0f9ff', 
+          border: '1px solid #0ea5e9', 
+          borderRadius: 8, 
+          padding: 12,
+          fontSize: '0.8rem'
+        }}>
+          <div style={{ fontWeight: 600, color: '#0369a1', marginBottom: 4 }}>Edit Mode Active:</div>
+          <div style={{ color: '#0c4a6e' }}>
+            • Drag and drop entries to move them to different time slots<br />
+            • Hover over target cells to see potential conflicts<br />
+            • Conflicts will be highlighted with warnings before you drop<br />
+            • Click "Save Changes" to apply your modifications
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -242,13 +456,42 @@ export default function TimetableView() {
                   </td>
                   {periods.map(period => {
                     const cell = getCell(day, period);
+                    const isDragOver = dragOverCell === `${day}-${period}`;
                     return (
-                      <td key={period}>
+                      <td 
+                        key={period}
+                        onDragOver={(e) => handleDragOver(e, day, period)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, day, period)}
+                        style={{
+                          background: isDragOver ? '#fef3c7' : 'transparent',
+                          border: isDragOver ? '2px dashed #f59e0b' : '1px solid #e2e8f0'
+                        }}
+                      >
                         {cell ? (
-                          <div className="tt-cell">
+                          <div 
+                            className="tt-cell"
+                            draggable={editMode}
+                            onDragStart={(e) => handleDragStart(e, cell)}
+                            style={{
+                              cursor: editMode ? 'grab' : 'default',
+                              opacity: draggedEntry?._id === cell._id ? 0.5 : 1,
+                              background: pendingChanges.some(c => c.entryId === cell._id) ? '#dcfce7' : 'transparent'
+                            }}
+                          >
                             <div className="subject">{cell.subject?.name || '-'}</div>
                             <div className="teacher">{cell.teacher?.name || '-'}</div>
                             <div className="room">{cell.classroom?.name || ''}{cell.class?.name ? ` · ${cell.class.name}` : ''}</div>
+                            {pendingChanges.some(c => c.entryId === cell._id) && (
+                              <div style={{ 
+                                fontSize: '0.6rem', 
+                                color: '#059669', 
+                                fontWeight: 600, 
+                                marginTop: 2 
+                              }}>
+                                MODIFIED
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="tt-empty">—</div>
