@@ -65,7 +65,10 @@ export default function TimetableView() {
 
   // Apply substitutes to entries if in substitutes view
   const getDisplayEntries = () => {
-    if (!isSubstitutesView || !substitutes.length) return tt.entries;
+    if (!isSubstitutesView || !substitutes.length) {
+      console.log('Not substitutes view or no substitutes:', { isSubstitutesView, substitutesLength: substitutes.length });
+      return tt.entries;
+    }
     
     console.log('Applying substitutes:', substitutes);
     console.log('Original entries:', tt.entries);
@@ -75,7 +78,9 @@ export default function TimetableView() {
         day: entry.day,
         period: entry.period,
         class: entry.class?._id,
-        teacher: entry.teacher?.name
+        className: entry.class?.name,
+        teacher: entry.teacher?.name,
+        subject: entry.subject?.name
       });
       
       const substitute = substitutes.find(sub => {
@@ -83,18 +88,27 @@ export default function TimetableView() {
           originalDay: sub.originalEntry?.day,
           originalPeriod: sub.originalEntry?.period,
           originalClass: sub.originalEntry?.class,
+          timetableId: sub.timetableId,
           status: sub.status,
-          substituteTeacher: sub.substituteTeacher?.name
+          substituteTeacher: sub.substituteTeacher?.name,
+          isLibrary: sub.isLibrary,
+          fullSubstitute: sub
         });
         
-        return sub.originalEntry?.day === entry.day &&
-               sub.originalEntry?.period === entry.period &&
-               sub.originalEntry?.class === entry.class?._id &&
-               sub.status === 'approved';
+        // Try multiple matching strategies
+        const dayMatch = sub.originalEntry?.day === entry.day;
+        const periodMatch = sub.originalEntry?.period === entry.period;
+        const classMatch = sub.originalEntry?.class === entry.class?._id || 
+                          sub.originalEntry?.class?._id === entry.class?._id;
+        const statusMatch = sub.status === 'approved';
+        
+        console.log('Match results:', { dayMatch, periodMatch, classMatch, statusMatch });
+        
+        return dayMatch && periodMatch && classMatch && statusMatch;
       });
       
       if (substitute) {
-        console.log('Found substitute match:', substitute);
+        console.log('✅ Found substitute match for entry:', entry, 'with substitute:', substitute);
         if (substitute.isLibrary) {
           return {
             ...entry,
@@ -109,6 +123,8 @@ export default function TimetableView() {
             isSubstitute: true
           };
         }
+      } else {
+        console.log('❌ No substitute found for entry:', entry);
       }
       
       return entry;
