@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Calendar, AlertTriangle, CheckCircle, XCircle, Clock, Users, Zap } from 'lucide-react';
+import { Plus, Calendar, AlertTriangle, CheckCircle, XCircle, Clock, Users, Zap, Download, Share2 } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 export default function UnavailabilityManager() {
   const [unavailabilities, setUnavailabilities] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [timetables, setTimetables] = useState([]);
   const [conflicts, setConflicts] = useState([]);
+  const [timetableView, setTimetableView] = useState(null);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(false);
@@ -81,9 +85,188 @@ export default function UnavailabilityManager() {
       });
       toast.success(data.message);
       setConflicts([]);
+      // Load updated timetable view
+      loadTimetableView(form.timetableId);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error');
     }
+  };
+
+  const loadTimetableView = async (timetableId) => {
+    if (!timetableId) {
+      setTimetableView(null);
+      return;
+    }
+    try {
+      const { data } = await api.get(`/substitutes/timetable/${timetableId}`);
+      setTimetableView(data);
+    } catch (err) {
+      toast.error('Failed to load timetable view');
+    }
+  };
+
+  const exportUpdatedPDF = () => {
+    if (!timetableView) return;
+    
+    const doc = new jsPDF({ orientation: 'landscape' });
+    doc.setFontSize(16);
+    doc.text(`ChronoGen - ${timetableView.name}`, 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Unavailability Resolved Timetable | Generated: ${new Date().toLocaleDateString()}`, 14, 22);
+    doc.text(`Fitness: ${timetableView.fitnessScore}% | Active Substitutions: ${timetableView.substitutes.length}`, 14, 28);
+
+    const days = timetableView.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const periods = timetableView.periods || [];
+    
+    const head = [['Day', ...periods.map(p => `P${p.periodNumber}\n${p.startTime}-${p.endTime}`)]];
+    const body = days.map(day => {
+      const row = [day];
+      periods.forEach(period => {
+        const entry = timetableView.entries.find(e => e.day === day && e.period === period.periodNumber);
+        const substitute = timetableView.substitutes.find(s => 
+          s.originalEntry.day === day && s.originalEntry.period === period.periodNumber && s.status === 'approved'
+        );
+        
+        if (entry) {
+          let cellText = `${entry.class?.name || ''}\n${entry.subject?.name || ''}`;
+          if (substitute) {
+            cellText += substitute.isLibrary ? '\n📚 Library' : `\n${substitute.substituteTeacher?.name || ''} (SUB)`;
+          } else {
+            cellText += `\n${entry.teacher?.name || ''}`;
+          }
+          cellText += `\n${entry.classroom?.name || ''}`;
+          row.push(cellText);
+        } else {
+          row.push('Free');
+        }
+      });
+      return row;
+    });
+
+    autoTable(doc, { 
+      head, 
+      body, 
+      startY: 35, 
+      styles: { fontSize: 8, cellPadding: 3 }, 
+      headStyles: { fillColor: [99, 102, 241] },
+      didParseCell: (data) => {
+        if (data.row.index > 0 && data.column.index > 0) {
+          const day = days[data.row.index - 1];
+          const period = periods[data.column.index - 1];
+          if (period) {
+            const substitute = timetableView.substitutes.find(s => 
+              s.originalEntry.day === day && s.originalEntry.period === period.periodNumber && s.status === 'approved'
+            );
+            if (substitute) {
+              data.cell.styles.fillColor = substitute.isLibrary ? [254, 243, 199] : [219, 234, 254];
+            }
+          }
+        }
+      }
+    });
+
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(10);
+    doc.text('Legend:', 14, finalY);
+    doc.setFillColor(219, 234, 254);
+    doc.rect(14, finalY + 3, 5, 3, 'F');
+    doc.text('Substitute Teacher', 22, finalY + 5);
+    doc.setFillColor(254, 243, 199);
+    doc.rect(80, finalY + 3, 5, 3, 'F');
+    doc.text('Library Period', 88, finalY + 5);
+    
+    doc.save(`${timetableView.name}_unavailability_resolved.pdf`);
+    toast.success('PDF exported successfully');
+  };
+
+  const exportUpdatedExcel = () => {
+    if (!timetableView) return;
+    
+    const wb = XLSX.utils.book_new();
+    const days = timetableView.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const periods = timetableView.periods || [];
+    
+    const rows = [['Day', ...periods.map(p => `P${p.periodNumber} (${p.startTime}-${p.endTime})`)]];
+    
+    days.forEach(day => {
+      const row = [day];
+      periods.forEach(period => {
+        const entry = timetableView.entries.find(e => e.day === day && e.period === period.periodNumber);
+        const substitute = timetableView.substitutes.find(s => 
+          s.originalEntry.day === day && s.originalEntry.period === period.periodNumber && s.status === 'approved'
+        );
+        
+        if (entry) {
+          let cellText = `${entry.class?.name || ''} - ${entry.subject?.name || ''}`;
+          if (substitute) {
+            cellText += substitute.isLibrary ? ' | 📚 Library' : ` | ${substitute.substituteTeacher?.name || ''} (SUB)`;
+          } else {
+            cellText += ` | ${entry.teacher?.name || ''}`;
+          }
+          cellText += ` | ${entry.classroom?.name || ''}`;
+          row.push(cellText);
+        } else {
+          row.push('Free');
+        }
+      });
+      rows.push(row);
+    });
+    
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Resolved Timetable');
+    
+    if (timetableView.substitutes.length > 0) {
+      const subRows = [['Type', 'Day', 'Period', 'Class', 'Subject', 'Original Teacher', 'Substitute/Action', 'Reason']];
+      timetableView.substitutes.forEach(sub => {
+        subRows.push([
+          sub.type === 'substitute' ? 'Substitute' : 'Swap',
+          sub.originalEntry.day,
+          `P${sub.originalEntry.period}`,
+          sub.originalEntry.class?.name || '',
+          sub.originalEntry.subject?.name || '',
+          sub.originalEntry.teacher?.name || '',
+          sub.isLibrary ? '📚 Library' : (sub.substituteTeacher?.name || sub.swapWith?.teacher?.name || ''),
+          sub.reason || ''
+        ]);
+      });
+      const subWs = XLSX.utils.aoa_to_sheet(subRows);
+      XLSX.utils.book_append_sheet(wb, subWs, 'Substitutions');
+    }
+    
+    XLSX.writeFile(wb, `${timetableView.name}_unavailability_resolved.xlsx`);
+    toast.success('Excel exported successfully');
+  };
+
+  const shareUpdatedTimetable = async () => {
+    if (!timetableView) return;
+    
+    const shareData = {
+      title: `${timetableView.name} - Unavailability Resolved`,
+      text: `Timetable with unavailability conflicts resolved. ${timetableView.substitutes.length} substitutions applied. Fitness: ${timetableView.fitnessScore}%`,
+      url: window.location.href
+    };
+    
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        toast.success('Shared successfully');
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          fallbackShare(shareData);
+        }
+      }
+    } else {
+      fallbackShare(shareData);
+    }
+  };
+
+  const fallbackShare = (shareData) => {
+    const shareText = `${shareData.title}\n${shareData.text}\n${shareData.url}`;
+    navigator.clipboard.writeText(shareText).then(() => {
+      toast.success('Link copied to clipboard');
+    }).catch(() => {
+      toast.error('Failed to copy link');
+    });
   };
 
   const del = async id => {
@@ -126,6 +309,118 @@ export default function UnavailabilityManager() {
           </button>
         </div>
       </div>
+
+      {/* Resolved Timetable View */}
+      {timetableView && (
+        <div className="card" style={{ marginTop: 24 }}>
+          <div className="card-header">
+            <span className="card-title">Resolved Timetable - {timetableView.name}</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Shows schedule with unavailability conflicts resolved</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn btn-success btn-sm" onClick={exportUpdatedPDF}>
+                  <Download size={14} /> PDF
+                </button>
+                <button className="btn btn-success btn-sm" onClick={exportUpdatedExcel}>
+                  <Download size={14} /> Excel
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={shareUpdatedTimetable}>
+                  <Share2 size={14} /> Share
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="timetable-grid" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+              <thead>
+                <tr style={{ background: '#f8fafc' }}>
+                  <th style={{ padding: '8px', border: '1px solid #e2e8f0', minWidth: 80 }}>Day</th>
+                  {timetableView.periods?.map(p => (
+                    <th key={p.periodNumber} style={{ padding: '8px', border: '1px solid #e2e8f0', minWidth: 120 }}>
+                      P{p.periodNumber}<br />
+                      <span style={{ fontSize: '0.7rem', color: '#64748b' }}>{p.startTime}-{p.endTime}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {timetableView.days?.map(day => (
+                  <tr key={day}>
+                    <td style={{ padding: '8px', border: '1px solid #e2e8f0', fontWeight: 600, background: '#f8fafc' }}>
+                      {day}
+                    </td>
+                    {timetableView.periods?.map(period => {
+                      const entry = timetableView.entries.find(e => e.day === day && e.period === period.periodNumber);
+                      const substitute = timetableView.substitutes.find(s => 
+                        s.originalEntry.day === day && s.originalEntry.period === period.periodNumber && s.status === 'approved'
+                      );
+                      
+                      return (
+                        <td key={period.periodNumber} style={{ 
+                          padding: '6px', 
+                          border: '1px solid #e2e8f0',
+                          background: substitute ? (substitute.isLibrary ? '#fef3c7' : '#dbeafe') : 'white'
+                        }}>
+                          {entry ? (
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: '0.75rem' }}>{entry.class?.name}</div>
+                              <div style={{ color: '#4f46e5', fontSize: '0.7rem' }}>{entry.subject?.name}</div>
+                              <div style={{ color: substitute ? '#dc2626' : '#059669', fontSize: '0.7rem' }}>
+                                {substitute ? (
+                                  substitute.isLibrary ? '📚 Library' : substitute.substituteTeacher?.name
+                                ) : (
+                                  entry.teacher?.name
+                                )}
+                              </div>
+                              <div style={{ color: '#64748b', fontSize: '0.65rem' }}>{entry.classroom?.name}</div>
+                              {substitute && (
+                                <div style={{ 
+                                  background: substitute.isLibrary ? '#f59e0b' : '#2563eb', 
+                                  color: 'white', 
+                                  fontSize: '0.6rem', 
+                                  padding: '1px 4px', 
+                                  borderRadius: 3, 
+                                  marginTop: 2,
+                                  display: 'inline-block'
+                                }}>
+                                  RESOLVED
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>Free</div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ padding: '12px', background: '#f8fafc', fontSize: '0.75rem', color: '#64748b' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 12, height: 12, background: '#dbeafe', border: '1px solid #93c5fd' }}></div>
+                  <span>Substitute Teacher</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 12, height: 12, background: '#fef3c7', border: '1px solid #fcd34d' }}></div>
+                  <span>Library Period</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ background: '#2563eb', color: 'white', padding: '1px 4px', borderRadius: 2, fontSize: '0.6rem' }}>RESOLVED</span>
+                  <span>Unavailability Resolved</span>
+                </div>
+              </div>
+              <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                Conflicts Resolved: {timetableView.substitutes.length} | Updated: {new Date().toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pending Approvals */}
       {pending.length > 0 && (
@@ -321,7 +616,11 @@ export default function UnavailabilityManager() {
                 <AlertTriangle size={14} /> {loading ? 'Checking...' : 'Check Conflicts'}
               </button>
               {conflicts.length > 0 && (
-                <button className="btn btn-primary" onClick={autoAssignSubstitutes}>
+                <button className="btn btn-primary" onClick={() => {
+                  autoAssignSubstitutes();
+                  // Load timetable view after assignment
+                  setTimeout(() => loadTimetableView(form.timetableId), 1000);
+                }}>
                   <Zap size={14} /> Auto-Assign Substitutes ({conflicts.length})
                 </button>
               )}
