@@ -134,49 +134,60 @@ export default function SystemDebug() {
 
   const testDirectDownload = async () => {
     try {
-      // Test direct fetch without axios
       const baseURL = api.defaults.baseURL.replace('/api', '');
       
-      // First wake up the backend
-      addResult('Direct Wake Up', 'info', 'Waking up backend for direct download...');
+      // Multi-step wake up process
+      addResult('Wake Up Process', 'info', 'Starting comprehensive wake-up process...');
+      
+      // Step 1: Wake up root
       await fetch(baseURL);
-      await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+      addResult('Wake Up Step 1', 'success', 'Root endpoint pinged');
+      
+      // Step 2: Wait and ping health
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await fetch(`${baseURL}/health`);
+      addResult('Wake Up Step 2', 'success', 'Health endpoint pinged');
+      
+      // Step 3: Wait and ping API health
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await fetch(`${baseURL}/api/health`);
+      addResult('Wake Up Step 3', 'success', 'API health endpoint pinged');
+      
+      // Step 4: Final wait before template download
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
       const url = `${baseURL}/api/excel/template`;
-      
-      addResult('Direct Fetch', 'info', `Testing direct fetch: ${url}`);
+      addResult('Template Download', 'info', `Attempting download: ${url}`);
       
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Accept': 'text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,*/*'
+          'Accept': 'text/csv,*/*'
         }
       });
 
-      addResult('Direct Response', 'info', `Response: ${response.status} ${response.statusText}`);
+      addResult('Response Status', 'info', `${response.status} ${response.statusText}`);
 
       if (response.ok) {
         const blob = await response.blob();
-        addResult('Direct Fetch', 'success', `Direct fetch successful: ${blob.size} bytes`);
+        addResult('Download Success', 'success', `Downloaded ${blob.size} bytes`);
         
-        // Download the file
         const url2 = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url2;
-        link.download = 'direct-template.csv';
+        link.download = 'template.csv';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url2);
         
-        toast.success('Direct download successful!');
+        toast.success('Template downloaded successfully!');
       } else {
         const errorText = await response.text();
-        addResult('Direct Fetch', 'error', `Direct fetch failed: ${response.status} ${response.statusText}`, errorText);
+        addResult('Download Failed', 'error', `${response.status} ${response.statusText}`, errorText);
       }
     } catch (error) {
-      addResult('Direct Fetch', 'error', 'Direct fetch error', error.message);
+      addResult('Download Error', 'error', 'Network error', error.message);
     }
   };
 
@@ -221,7 +232,7 @@ export default function SystemDebug() {
             className="btn btn-secondary" 
             onClick={testDirectDownload}
           >
-            <Download size={16} /> Test Direct Download
+            <Download size={16} /> Download Template (Direct)
           </button>
           
           <button 
