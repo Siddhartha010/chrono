@@ -16,9 +16,15 @@ export default function Teachers() {
   const [editing, setEditing] = useState(null);
   const [search, setSearch] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('');
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [selectAll, setSelectAll] = useState(false);
 
   const load = () => {
-    api.get('/teachers').then(r => setTeachers(r.data));
+    api.get('/teachers').then(r => {
+      setTeachers(r.data);
+      setSelectedItems(new Set());
+      setSelectAll(false);
+    });
     api.get('/subjects').then(r => setSubjects(r.data));
   };
 
@@ -47,6 +53,46 @@ export default function Teachers() {
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error');
+    }
+  };
+
+  const handleSelectAll = (items) => {
+    if (selectAll) {
+      setSelectedItems(new Set());
+      setSelectAll(false);
+    } else {
+      setSelectedItems(new Set(items.map(item => item._id)));
+      setSelectAll(true);
+    }
+  };
+
+  const handleSelectItem = (itemId) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItems(newSelected);
+    setSelectAll(false);
+  };
+
+  const bulkDelete = async () => {
+    if (selectedItems.size === 0) {
+      toast.error('No teachers selected');
+      return;
+    }
+    
+    if (!window.confirm(`Delete ${selectedItems.size} selected teachers?`)) return;
+    
+    try {
+      await Promise.all(
+        Array.from(selectedItems).map(id => api.delete(`/teachers/${id}`))
+      );
+      toast.success(`Deleted ${selectedItems.size} teachers`);
+      load();
+    } catch (err) {
+      toast.error('Failed to delete some teachers');
     }
   };
 
@@ -113,18 +159,42 @@ export default function Teachers() {
         <div key={course} style={{ marginTop: 24 }} className="card">
           <div className="card-header">
             <span className="card-title">{course} ({courseTeachers.length} teachers)</span>
+            {courseTeachers.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button 
+                  className="btn btn-secondary btn-sm" 
+                  onClick={() => handleSelectAll(courseTeachers)}
+                >
+                  {selectAll ? 'Deselect All' : 'Select All'}
+                </button>
+                {selectedItems.size > 0 && (
+                  <button className="btn btn-danger btn-sm" onClick={bulkDelete}>
+                    Delete Selected ({selectedItems.size})
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: 40 }}>Select</th>
                   <th>Name</th><th>Email</th><th>Subjects</th>
                   <th>Max/Day</th><th>Max/Week</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {courseTeachers.map(t => (
-                  <tr key={t._id}>
+                  <tr key={t._id} style={{ background: selectedItems.has(t._id) ? '#f0f9ff' : 'transparent' }}>
+                    <td>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedItems.has(t._id)}
+                        onChange={() => handleSelectItem(t._id)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </td>
                     <td><strong>{t.name}</strong></td>
                     <td>{t.email || '-'}</td>
                     <td>{t.subjects.map(s => <span key={s._id} className="chip">{s.name}</span>)}</td>
@@ -150,12 +220,13 @@ export default function Teachers() {
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: 40 }}>Select</th>
                   <th>Name</th><th>Email</th><th>Subjects</th>
                   <th>Max/Day</th><th>Max/Week</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                <tr><td colSpan={6} className="empty-state">No teachers found</td></tr>
+                <tr><td colSpan={7} className="empty-state">No teachers found</td></tr>
               </tbody>
             </table>
           </div>

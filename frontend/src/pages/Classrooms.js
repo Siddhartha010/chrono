@@ -10,8 +10,14 @@ export default function Classrooms() {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState(empty);
   const [editing, setEditing] = useState(null);
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [selectAll, setSelectAll] = useState(false);
 
-  const load = () => api.get('/classrooms').then(r => setClassrooms(r.data));
+  const load = () => api.get('/classrooms').then(r => {
+    setClassrooms(r.data);
+    setSelectedItems(new Set());
+    setSelectAll(false);
+  });
   useEffect(() => { load(); }, []);
 
   const openAdd = () => { setForm(empty); setEditing(null); setModal(true); };
@@ -26,6 +32,46 @@ export default function Classrooms() {
     } catch (err) { toast.error(err.response?.data?.message || 'Error'); }
   };
 
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedItems(new Set());
+      setSelectAll(false);
+    } else {
+      setSelectedItems(new Set(classrooms.map(item => item._id)));
+      setSelectAll(true);
+    }
+  };
+
+  const handleSelectItem = (itemId) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItems(newSelected);
+    setSelectAll(false);
+  };
+
+  const bulkDelete = async () => {
+    if (selectedItems.size === 0) {
+      toast.error('No classrooms selected');
+      return;
+    }
+    
+    if (!window.confirm(`Delete ${selectedItems.size} selected classrooms?`)) return;
+    
+    try {
+      await Promise.all(
+        Array.from(selectedItems).map(id => api.delete(`/classrooms/${id}`))
+      );
+      toast.success(`Deleted ${selectedItems.size} classrooms`);
+      load();
+    } catch (err) {
+      toast.error('Failed to delete some classrooms');
+    }
+  };
+
   const del = async id => {
     if (!window.confirm('Delete classroom?')) return;
     await api.delete(`/classrooms/${id}`); toast.success('Deleted'); load();
@@ -35,16 +81,41 @@ export default function Classrooms() {
     <div className="page">
       <div className="topbar">
         <h2>Classrooms</h2>
-        <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Add Classroom</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {classrooms.length > 0 && (
+            <>
+              <button 
+                className="btn btn-secondary btn-sm" 
+                onClick={handleSelectAll}
+              >
+                {selectAll ? 'Deselect All' : 'Select All'}
+              </button>
+              {selectedItems.size > 0 && (
+                <button className="btn btn-danger btn-sm" onClick={bulkDelete}>
+                  Delete Selected ({selectedItems.size})
+                </button>
+              )}
+            </>
+          )}
+          <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Add Classroom</button>
+        </div>
       </div>
 
       <div style={{ marginTop: 24 }} className="card">
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Building</th><th>Capacity</th><th>Type</th><th>Actions</th></tr></thead>
+            <thead><tr><th style={{ width: 40 }}>Select</th><th>Name</th><th>Building</th><th>Capacity</th><th>Type</th><th>Actions</th></tr></thead>
             <tbody>
               {classrooms.map(c => (
-                <tr key={c._id}>
+                <tr key={c._id} style={{ background: selectedItems.has(c._id) ? '#f0f9ff' : 'transparent' }}>
+                  <td>
+                    <input 
+                      type="checkbox" 
+                      checked={selectedItems.has(c._id)}
+                      onChange={() => handleSelectItem(c._id)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </td>
                   <td><strong>{c.name}</strong></td>
                   <td>{c.building || '-'}</td>
                   <td>{c.capacity}</td>
@@ -57,7 +128,7 @@ export default function Classrooms() {
                   </td>
                 </tr>
               ))}
-              {classrooms.length === 0 && <tr><td colSpan={5} className="empty-state">No classrooms found</td></tr>}
+              {classrooms.length === 0 && <tr><td colSpan={6} className="empty-state">No classrooms found</td></tr>}
             </tbody>
           </table>
         </div>

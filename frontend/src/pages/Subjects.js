@@ -11,8 +11,14 @@ export default function Subjects() {
   const [form, setForm] = useState(empty);
   const [editing, setEditing] = useState(null);
   const [selectedCourse, setSelectedCourse] = useState('');
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [selectAll, setSelectAll] = useState(false);
 
-  const load = () => api.get('/subjects').then(r => setSubjects(r.data));
+  const load = () => api.get('/subjects').then(r => {
+    setSubjects(r.data);
+    setSelectedItems(new Set());
+    setSelectAll(false);
+  });
   useEffect(() => { load(); }, []);
 
   const openAdd = () => { setForm(empty); setEditing(null); setModal(true); };
@@ -35,6 +41,46 @@ export default function Subjects() {
       else await api.post('/subjects', form);
       toast.success('Saved'); setModal(false); load();
     } catch (err) { toast.error(err.response?.data?.message || 'Error'); }
+  };
+
+  const handleSelectAll = (items) => {
+    if (selectAll) {
+      setSelectedItems(new Set());
+      setSelectAll(false);
+    } else {
+      setSelectedItems(new Set(items.map(item => item._id)));
+      setSelectAll(true);
+    }
+  };
+
+  const handleSelectItem = (itemId) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItems(newSelected);
+    setSelectAll(false);
+  };
+
+  const bulkDelete = async () => {
+    if (selectedItems.size === 0) {
+      toast.error('No subjects selected');
+      return;
+    }
+    
+    if (!window.confirm(`Delete ${selectedItems.size} selected subjects?`)) return;
+    
+    try {
+      await Promise.all(
+        Array.from(selectedItems).map(id => api.delete(`/subjects/${id}`))
+      );
+      toast.success(`Deleted ${selectedItems.size} subjects`);
+      load();
+    } catch (err) {
+      toast.error('Failed to delete some subjects');
+    }
   };
 
   const del = async id => {
@@ -71,13 +117,36 @@ export default function Subjects() {
         <div key={course} style={{ marginTop: 24 }} className="card">
           <div className="card-header">
             <span className="card-title">{course} ({courseSubjects.length} subjects)</span>
+            {courseSubjects.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button 
+                  className="btn btn-secondary btn-sm" 
+                  onClick={() => handleSelectAll(courseSubjects)}
+                >
+                  {selectAll ? 'Deselect All' : 'Select All'}
+                </button>
+                {selectedItems.size > 0 && (
+                  <button className="btn btn-danger btn-sm" onClick={bulkDelete}>
+                    Delete Selected ({selectedItems.size})
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Name</th><th>Code</th><th>Hours/Week</th><th>Type</th><th>Actions</th></tr></thead>
+              <thead><tr><th style={{ width: 40 }}>Select</th><th>Name</th><th>Code</th><th>Hours/Week</th><th>Type</th><th>Actions</th></tr></thead>
               <tbody>
                 {courseSubjects.map(s => (
-                  <tr key={s._id}>
+                  <tr key={s._id} style={{ background: selectedItems.has(s._id) ? '#f0f9ff' : 'transparent' }}>
+                    <td>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedItems.has(s._id)}
+                        onChange={() => handleSelectItem(s._id)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </td>
                     <td><strong>{s.name}</strong></td>
                     <td>{s.code || '-'}</td>
                     <td>{s.hoursPerWeek}</td>
@@ -100,9 +169,9 @@ export default function Subjects() {
         <div style={{ marginTop: 24 }} className="card">
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Name</th><th>Code</th><th>Hours/Week</th><th>Type</th><th>Actions</th></tr></thead>
+              <thead><tr><th style={{ width: 40 }}>Select</th><th>Name</th><th>Code</th><th>Hours/Week</th><th>Type</th><th>Actions</th></tr></thead>
               <tbody>
-                <tr><td colSpan={5} className="empty-state">No subjects found</td></tr>
+                <tr><td colSpan={6} className="empty-state">No subjects found</td></tr>
               </tbody>
             </table>
           </div>
