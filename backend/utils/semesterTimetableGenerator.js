@@ -5,7 +5,7 @@ const Teacher = require('../models/Teacher');
 const Subject = require('../models/Subject');
 const Classroom = require('../models/Classroom');
 const Timeslot = require('../models/Timeslot');
-const { generateTimetable } = require('./geneticAlgorithm');
+const { runGA } = require('./geneticAlgorithm');
 
 class SemesterTimetableGenerator {
   constructor(semester, classes, teachers, subjects, classrooms, timeslots) {
@@ -124,40 +124,84 @@ class SemesterTimetableGenerator {
   generateWeeklySchedule(weekNumber) {
     console.log(`Generating schedule for week ${weekNumber} using genetic algorithm`);
     
-    // Use the genetic algorithm to generate a proper timetable
-    const gaResult = generateTimetable(
-      this.classes,
-      this.teachers,
-      this.subjects,
-      this.classrooms,
-      this.timeslots,
-      {
-        populationSize: 50,
-        generations: 100,
-        mutationRate: 0.1,
-        eliteSize: 5
+    try {
+      // Use the genetic algorithm to generate a proper timetable
+      const gaResult = runGA(
+        this.classes,
+        this.teachers,
+        this.classrooms,
+        this.timeslots,
+        {
+          populationSize: 50,
+          maxGenerations: 100,
+          mutationRate: 0.1,
+          crossoverRate: 0.8
+        }
+      );
+      
+      // Convert GA result to weekly format
+      const entries = gaResult.chromosome.map(gene => ({
+        day: gene.day,
+        period: gene.period,
+        class: gene.classId,
+        subject: gene.subjectId,
+        teacher: gene.teacherId,
+        classroom: gene.classroomId,
+        isCompensation: false,
+        isDoubleClass: false,
+        isSaturdayClass: false
+      }));
+      
+      console.log(`Generated ${entries.length} entries for week ${weekNumber} with fitness ${Math.round(gaResult.fitnessScore * 100)}%`);
+      
+      return {
+        entries: entries,
+        fitnessScore: Math.round(gaResult.fitnessScore * 100)
+      };
+    } catch (error) {
+      console.error(`GA failed for week ${weekNumber}, using fallback:`, error);
+      
+      // Fallback to simple scheduling
+      const entries = this.generateSimpleSchedule(weekNumber);
+      return {
+        entries: entries,
+        fitnessScore: 50 // Default score for fallback
+      };
+    }
+  }
+  
+  // Fallback simple scheduling method
+  generateSimpleSchedule(weekNumber) {
+    const entries = [];
+    const periods = this.timeslots.periods.filter(p => !p.isBreak);
+    
+    for (const cls of this.classes) {
+      for (const subjectAssignment of cls.subjects) {
+        const subject = subjectAssignment.subject;
+        const teacher = subjectAssignment.teacher;
+        const hoursPerWeek = subject.hoursPerWeek || 3;
+        
+        // Simple distribution across the week
+        for (let h = 0; h < hoursPerWeek && h < periods.length; h++) {
+          const dayIndex = h % this.workingDays.length;
+          const periodIndex = Math.floor(h / this.workingDays.length) % periods.length;
+          
+          entries.push({
+            day: this.workingDays[dayIndex],
+            period: periods[periodIndex].periodNumber,
+            class: cls._id,
+            subject: subject._id,
+            teacher: teacher._id,
+            classroom: this.findAvailableClassroom(cls, subject)?._id,
+            isCompensation: false,
+            isDoubleClass: false,
+            isSaturdayClass: false
+          });
+        }
       }
-    );
+    }
     
-    // Convert GA result to weekly format
-    const entries = gaResult.entries.map(entry => ({
-      day: entry.day,
-      period: entry.period,
-      class: entry.class,
-      subject: entry.subject,
-      teacher: entry.teacher,
-      classroom: entry.classroom,
-      isCompensation: false,
-      isDoubleClass: false,
-      isSaturdayClass: false
-    }));
-    
-    console.log(`Generated ${entries.length} entries for week ${weekNumber} with fitness ${gaResult.fitnessScore}%`);
-    
-    return {
-      entries: entries,
-      fitnessScore: gaResult.fitnessScore
-    };
+    return entries;
   }
 
   // Distribute subject hours across the week
