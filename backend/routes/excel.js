@@ -31,14 +31,17 @@ router.get('/template', auth, async (req, res) => {
     const excelService = new ExcelService();
     const workbook = await excelService.generateTemplate();
     
+    // Set proper headers
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="ChronoGen_Template.xlsx"');
+    res.setHeader('Content-Length', '0'); // Will be set by xlsx.write
     
+    // Write workbook to response
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
     console.error('Template generation error:', error);
-    res.status(500).json({ error: 'Failed to generate template' });
+    res.status(500).json({ error: 'Failed to generate template', details: error.message });
   }
 });
 
