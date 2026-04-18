@@ -20,9 +20,40 @@ app.use(cors({
 
 app.use(express.json());
 
-// Health check endpoint
+// Health check endpoint - make sure this works
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  console.log('Health check called');
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    message: 'ChronoGen Backend is running',
+    version: '1.0.0'
+  });
+});
+
+// Root health check (without /api prefix)
+app.get('/health', (req, res) => {
+  console.log('Root health check called');
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    message: 'ChronoGen Backend is running',
+    routes: 'Available'
+  });
+});
+
+// Root route to wake up the server
+app.get('/', (req, res) => {
+  console.log('Root route called');
+  res.json({ 
+    message: 'ChronoGen Backend API',
+    status: 'running',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/health or /api/health',
+      excel: '/api/excel/template'
+    }
+  });
 });
 
 // Test if excel route loads
@@ -37,6 +68,11 @@ try {
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="fallback.csv"');
     res.send('Class,Section\nTest Class,A\nTest Class,B');
+  });
+  
+  app.get('/api/excel/test', (req, res) => {
+    console.log('Fallback test route called');
+    res.json({ message: 'Fallback Excel route working', timestamp: new Date().toISOString() });
   });
 }
 
