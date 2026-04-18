@@ -77,16 +77,32 @@ start.bat
 ```
 
 ## Usage Flow
+
+### Admin Workflow
 1. **Register/Login** as admin
-2. Add **Subjects** (name, hours/week)
-3. Add **Teachers** (name, subjects, availability, max workload)
-4. Add **Classrooms** (name, capacity)
-5. Add **Classes** (name, subject-teacher assignments)
+2. Add **Subjects** by course (BTech, BCS, MCA, etc.)
+3. Add **Teachers** with course assignments and availability
+4. Add **Classrooms** with capacity and lab specifications
+5. Add **Classes** with subject-teacher assignments
 6. Configure **Time Slots** (days + periods)
-7. Go to **Generate** → set GA parameters → click Generate
-8. View the timetable grid, filter by class/teacher/subject
-9. Check **Teacher Dashboard** for workload analysis
-10. **Export** as PDF or Excel
+7. **Generate Timetables** → set GA parameters → generate
+8. **Edit Timetables** using drag-drop with conflict detection
+9. **Manage Substitutes** and teacher unavailabilities
+10. **Generate Exam Schedules** with conflict resolution
+11. **Export** timetables as PDF or Excel
+
+### Teacher Workflow
+1. **Login** as teacher
+2. View **Personal Timetable** and workload
+3. **Request Substitutes** for unavailable periods
+4. **Manage Availability** and leave requests
+5. **View Substitute Assignments** and swap requests
+
+### Student Workflow
+1. **Login** as student
+2. **Create Personal Schedules** for study planning
+3. **View Class Timetables** and exam schedules
+4. **Export Personal Schedules** as PDF
 
 
 ## Database Schema
@@ -133,13 +149,34 @@ The system uses **MongoDB** with **Mongoose** models. Below is the relational st
 - `periods` (Array of {periodNumber, startTime, endTime, isBreak})
 - `createdBy` (Ref: User)
 
-### 7. Timetable
-- `name` (String)
-- `fitnessScore` (Number)
-- `generation` (Number)
-- `entries` (Array of {day, period, class, subject, teacher, classroom})
-- `constraints` (Object: populationSize, maxGenerations, mutationRate, crossoverRate)
-- `status` (Enum: ['generating', 'completed', 'failed'])
+### 8. Schedule
+- `name` (String, Required)
+- `type` (Enum: ['personal', 'exam'])
+- `entries` (Array of {day, period, subject, description, location})
+- `createdBy` (Ref: User)
+- `targetClass` (Ref: Class) // For exam schedules
+
+### 9. Substitute
+- `originalTeacher` (Ref: Teacher, Required)
+- `substituteTeacher` (Ref: Teacher, Required)
+- `date` (Date, Required)
+- `period` (Number, Required)
+- `class` (Ref: Class, Required)
+- `subject` (Ref: Subject, Required)
+- `reason` (String)
+- `status` (Enum: ['pending', 'approved', 'rejected'])
+- `type` (Enum: ['admin_assigned', 'teacher_swap'])
+- `createdBy` (Ref: User)
+
+### 10. TeacherUnavailability
+- `teacher` (Ref: Teacher, Required)
+- `startDate` (Date, Required)
+- `endDate` (Date, Required)
+- `reason` (Enum: ['leave', 'exam_duty', 'event', 'meeting', 'training'])
+- `description` (String)
+- `status` (Enum: ['pending', 'approved', 'rejected'])
+- `affectedPeriods` (Array of {date, period, class, subject})
+- `substituteAssignments` (Array of Ref: Substitute)
 - `createdBy` (Ref: User)
 
 ## Key Features
@@ -147,6 +184,14 @@ The system uses **MongoDB** with **Mongoose** models. Below is the relational st
 - **Conflict Management**: Ensures no teacher, class, or room is double-booked.
 - **Workload Balancing**: Respects teacher availability and maximum working hours.
 - **Interactive UI**: Responsive dashboard for data entry and timetable visualization.
+- **Role-Based Access**: Support for Admin, Teacher, and Student roles with different interfaces.
+- **Course Organization**: Teachers and subjects grouped by courses (BTech, BCS, MCA, MBA, MSc).
+- **Drag-Drop Editing**: Manual timetable editing with real-time conflict detection.
+- **Personal Scheduling**: Students can create and manage personal schedules.
+- **Exam Scheduling**: Automated exam timetable generation with conflict detection.
+- **Substitute Management**: Comprehensive substitute teacher system with auto-assignment.
+- **Unavailability Tracking**: Teacher leave management with automatic substitute assignment.
+- **Bulk Operations**: Bulk selection and deletion across Teachers, Subjects, and Classrooms.
 - **Filtering**: View timetables by Class, Teacher, or Subject.
 - **Exporting**: One-click download as PDF or Excel files.
 - **Teacher Insights**: Dedicated dashboard for teacher workload analysis.
@@ -221,7 +266,13 @@ To efficiently develop and maintain **ChronoGen**, tasks are divided into four s
 | POST                | /api/timetable/generate              | Run GA & generate timetable|
 | GET                 | /api/timetable                       | List all timetables        |
 | GET                 | /api/timetable/:id                   | Get timetable              |
+| PUT                 | /api/timetable/:id/entry             | Update timetable entry     |
 | GET                 | /api/timetable/:id/teacher-dashboard | Teacher workload           |
+| GET/POST/PUT/DELETE | /api/schedules                       | CRUD personal/exam schedules|
+| GET/POST/PUT/DELETE | /api/substitutes                     | CRUD substitute assignments|
+| POST                | /api/substitutes/auto-assign         | Auto-assign substitutes    |
+| GET/POST/PUT/DELETE | /api/unavailability                  | CRUD teacher unavailability|
+| POST                | /api/unavailability/conflicts        | Check unavailability conflicts|
 | GET                 | /api/export/:id/pdf                  | Export PDF                 |
 | GET                 | /api/export/:id/excel                | Export Excel               |
 |_____________________|______________________________________|____________________________|
