@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wand2, Settings } from 'lucide-react';
+import { Wand2 } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 
@@ -63,7 +63,7 @@ export default function Generate() {
       <div style={{ marginTop: 24, maxWidth: 560 }}>
         <div className="card">
           <div className="card-header">
-            <span className="card-title"><Settings size={16} style={{ display: 'inline', marginRight: 6 }} />GA Parameters</span>
+            <span className="card-title"><Wand2 size={16} style={{ display: 'inline', marginRight: 6 }} />Generate Timetable</span>
           </div>
 
           {generating ? (
@@ -92,42 +92,14 @@ export default function Generate() {
                 </select>
                 <small style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Leave empty to generate for all classes</small>
               </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Population Size</label>
-                  <input className="form-input" type="number" min={10} max={200} value={params.populationSize}
-                    onChange={e => setParams({ ...params, populationSize: +e.target.value })} />
-                  <small style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Number of timetables per generation</small>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Max Generations</label>
-                  <input className="form-input" type="number" min={10} max={1000} value={params.maxGenerations}
-                    onChange={e => setParams({ ...params, maxGenerations: +e.target.value })} />
-                  <small style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Higher = better quality, slower</small>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Mutation Rate ({(params.mutationRate * 100).toFixed(0)}%)</label>
-                  <input type="range" min={0.01} max={0.5} step={0.01} value={params.mutationRate}
-                    onChange={e => setParams({ ...params, mutationRate: +e.target.value })}
-                    style={{ width: '100%' }} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Crossover Rate ({(params.crossoverRate * 100).toFixed(0)}%)</label>
-                  <input type="range" min={0.1} max={1} step={0.05} value={params.crossoverRate}
-                    onChange={e => setParams({ ...params, crossoverRate: +e.target.value })}
-                    style={{ width: '100%' }} />
-                </div>
-              </div>
 
               <div style={{ background: '#f8fafc', borderRadius: 8, padding: 14, marginBottom: 16, fontSize: '0.8rem', color: '#64748b' }}>
                 <strong style={{ color: '#475569' }}>How it works:</strong>
                 <ul style={{ marginTop: 6, paddingLeft: 16, lineHeight: 1.8 }}>
-                  <li>Generates {params.populationSize} random timetables</li>
+                  <li>Uses advanced genetic algorithm with optimized parameters</li>
                   <li>Evaluates fitness: no clashes, balanced workload</li>
-                  <li>Evolves over {params.maxGenerations} generations via selection, crossover & mutation</li>
-                  <li>Returns the best conflict-free timetable</li>
+                  <li>Automatically finds the best conflict-free timetable</li>
+                  <li>Applies intelligent fallback if needed for 100% success</li>
                 </ul>
               </div>
 
