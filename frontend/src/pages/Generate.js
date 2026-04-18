@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wand2, Settings } from 'lucide-react';
 import api from '../api/axios';
@@ -11,9 +11,23 @@ export default function Generate() {
     mutationRate: 0.1,
     crossoverRate: 0.8
   });
+  const [selectedClass, setSelectedClass] = useState('');
+  const [classes, setClasses] = useState([]);
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchClasses = async () => {
+      try {
+        const { data } = await api.get('/classes');
+        setClasses(data);
+      } catch (err) {
+        toast.error('Failed to load classes');
+      }
+    };
+    fetchClasses();
+  }, []);
 
   const generate = async e => {
     e.preventDefault();
@@ -26,7 +40,10 @@ export default function Generate() {
     }, 400);
 
     try {
-      const { data } = await api.post('/timetable/generate', { constraints: params });
+      const payload = { constraints: params };
+      if (selectedClass) payload.classId = selectedClass;
+      
+      const { data } = await api.post('/timetable/generate', payload);
       clearInterval(interval);
       setProgress(100);
       toast.success(`Timetable generated! Fitness: ${data.fitnessScore}%`);
@@ -65,6 +82,16 @@ export default function Generate() {
             </div>
           ) : (
             <form onSubmit={generate}>
+              <div className="form-group">
+                <label className="form-label">Select Class (Optional)</label>
+                <select className="form-input" value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
+                  <option value="">All Classes</option>
+                  {classes.map(cls => (
+                    <option key={cls._id} value={cls._id}>{cls.name} {cls.section && `- ${cls.section}`}</option>
+                  ))}
+                </select>
+                <small style={{ color: '#94a3b8', fontSize: '0.72rem' }}>Leave empty to generate for all classes</small>
+              </div>
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Population Size</label>

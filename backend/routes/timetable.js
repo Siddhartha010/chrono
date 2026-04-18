@@ -11,11 +11,15 @@ const router = express.Router();
 // Generate timetable
 router.post('/generate', auth, async (req, res) => {
   try {
-    const { constraints = {} } = req.body;
+    const { constraints = {}, classId } = req.body;
     const uid = req.user.id;
 
+    // Build query for classes
+    const classQuery = { createdBy: uid };
+    if (classId) classQuery._id = classId;
+
     const [classes, teachers, classrooms, timeslots] = await Promise.all([
-      Class.find({ createdBy: uid }).populate('subjects.subject subjects.teacher'),
+      Class.find(classQuery).populate('subjects.subject subjects.teacher'),
       Teacher.find({ createdBy: uid }),
       Classroom.find({ createdBy: uid }),
       Timeslot.find({ createdBy: uid })
@@ -23,7 +27,7 @@ router.post('/generate', auth, async (req, res) => {
 
     if (!timeslots.length) return res.status(400).json({ message: 'No timeslot configuration found' });
     if (!classrooms.length) return res.status(400).json({ message: 'No classrooms found' });
-    if (!classes.length) return res.status(400).json({ message: 'No classes found' });
+    if (!classes.length) return res.status(400).json({ message: classId ? 'Selected class not found' : 'No classes found' });
 
     const timeslotConfig = timeslots[0];
     const { chromosome, fitnessScore, generation } = runGA(classes, teachers, classrooms, timeslotConfig, constraints);
@@ -37,7 +41,12 @@ router.post('/generate', auth, async (req, res) => {
       classroom: gene.classroomId
     }));
 
+    const timetableName = classId && classes.length === 1 
+      ? `${classes[0].name}${classes[0].section ? ` - ${classes[0].section}` : ''} Timetable`
+      : 'Generated Timetable';
+
     const timetable = await Timetable.create({
+      name: timetableName,
       entries,
       fitnessScore: Math.round(fitnessScore * 100),
       generation,
