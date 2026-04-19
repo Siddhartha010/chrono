@@ -15,18 +15,26 @@ export default function ExcelTest() {
     setTesting(true);
     setResults([]);
 
-    // Test 1: Excel test route
+    // Test 1: Excel test route (original)
     try {
       const response = await api.get('/excel/test');
-      addResult('Excel Test Route', 'success', `Response: ${response.data.message}`);
+      addResult('Excel Test Route (Original)', 'success', `Response: ${response.data.message}`);
     } catch (error) {
-      addResult('Excel Test Route', 'error', `Failed: ${error.response?.status} ${error.message}`);
+      addResult('Excel Test Route (Original)', 'error', `Failed: ${error.response?.status} ${error.message}`);
     }
 
-    // Test 2: Template download
+    // Test 1b: Excel test route (via auth - backup)
+    try {
+      const response = await api.get('/auth/excel-test');
+      addResult('Excel Test Route (Via Auth)', 'success', `Response: ${response.data.message}`);
+    } catch (error) {
+      addResult('Excel Test Route (Via Auth)', 'error', `Failed: ${error.response?.status} ${error.message}`);
+    }
+
+    // Test 2: Template download (original)
     try {
       const response = await api.get('/excel/template', { responseType: 'blob' });
-      addResult('Template Download', 'success', `Downloaded ${response.data.size} bytes`);
+      addResult('Template Download (Original)', 'success', `Downloaded ${response.data.size} bytes`);
       
       // Actually download the file
       const blob = new Blob([response.data], { type: 'text/csv' });
@@ -41,15 +49,43 @@ export default function ExcelTest() {
       
       toast.success('Template downloaded successfully!');
     } catch (error) {
-      addResult('Template Download', 'error', `Failed: ${error.response?.status} ${error.message}`);
+      addResult('Template Download (Original)', 'error', `Failed: ${error.response?.status} ${error.message}`);
+      
+      // Try backup route
+      try {
+        const response = await api.get('/auth/excel-template', { responseType: 'blob' });
+        addResult('Template Download (Via Auth)', 'success', `Downloaded ${response.data.size} bytes`);
+        
+        const blob = new Blob([response.data], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'test-template-auth.csv';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        toast.success('Template downloaded via auth route!');
+      } catch (authError) {
+        addResult('Template Download (Via Auth)', 'error', `Failed: ${authError.response?.status} ${authError.message}`);
+      }
     }
 
-    // Test 3: Upload route
+    // Test 3: Upload route (original)
     try {
       const response = await api.post('/excel/upload', { test: 'data' });
-      addResult('Upload Route', 'success', `Response: ${response.data.message}`);
+      addResult('Upload Route (Original)', 'success', `Response: ${response.data.message}`);
     } catch (error) {
-      addResult('Upload Route', 'error', `Failed: ${error.response?.status} ${error.message}`);
+      addResult('Upload Route (Original)', 'error', `Failed: ${error.response?.status} ${error.message}`);
+      
+      // Try backup route
+      try {
+        const response = await api.post('/auth/excel-upload', { test: 'data' });
+        addResult('Upload Route (Via Auth)', 'success', `Response: ${response.data.message}`);
+      } catch (authError) {
+        addResult('Upload Route (Via Auth)', 'error', `Failed: ${authError.response?.status} ${authError.message}`);
+      }
     }
 
     setTesting(false);
