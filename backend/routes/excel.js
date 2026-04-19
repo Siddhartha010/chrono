@@ -363,6 +363,16 @@ router.post('/generate', auth, async (req, res) => {
 
     if (!data) return res.status(400).json({ error: 'No data provided' });
 
+    console.log('Excel generate - data received:', {
+      classes: data.classes?.length,
+      subjects: data.subjects?.length,
+      teachers: data.teachers?.length,
+      classrooms: data.classrooms?.length,
+      periods: data.timeSlots?.periods?.length,
+      days: data.timeSlots?.days,
+      assignments: data.assignments?.length
+    });
+
     // Save subjects
     const subjectMap = {};
     for (const s of data.subjects) {
@@ -446,6 +456,8 @@ router.post('/generate', auth, async (req, res) => {
 
     // Verify at least one class has subjects
     const classesWithSubjects = classes.filter(c => c.subjects && c.subjects.length > 0);
+    console.log('After save - classes:', classes.length, 'with subjects:', classesWithSubjects.length, 'teachers:', teachers.length, 'classrooms:', classrooms.length, 'timeslots:', timeslots.length);
+    if (timeslots.length) console.log('Timeslot days:', timeslots[0].days, 'periods:', timeslots[0].periods?.length);
     if (!classesWithSubjects.length) {
       return res.status(400).json({ error: 'No classes have subjects assigned. Check Assignments sheet.' });
     }
@@ -455,6 +467,8 @@ router.post('/generate', auth, async (req, res) => {
       { populationSize: 50, maxGenerations: 200 }
     );
 
+    console.log('GA result:', { fitnessScore, generation, chromosomeLength: chromosome?.length });
+
     const entries = chromosome
       .map(gene => ({
         day: gene.day, period: gene.period,
@@ -462,6 +476,8 @@ router.post('/generate', auth, async (req, res) => {
         teacher: gene.teacherId, classroom: gene.classroomId
       }))
       .filter(e => e.class && e.subject && e.teacher && e.classroom);
+
+    console.log('Valid entries:', entries.length);
 
     if (!entries.length) {
       return res.status(400).json({ error: 'GA produced no valid entries. Check that subjects and teachers are properly assigned.' });

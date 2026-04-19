@@ -257,8 +257,8 @@ export default function ExcelImport() {
       toast.success('Timetable generated successfully!');
       navigate(`/timetable/${response.data.timetable._id}`);
     } catch (error) {
-      toast.error('Generation failed: ' + (error.response?.data?.error || error.message));
-      console.error('Generation error:', error);
+      toast.error('Generation failed: ' + (error.response?.data?.details || error.response?.data?.error || error.message));
+      console.error('Generation error:', error.response?.data || error);
     } finally {
       setGenerating(false);
     }
