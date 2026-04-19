@@ -214,15 +214,18 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
       result.classrooms.push({ name: String(r['Room Name']), capacity: Number(r['Capacity']) || 30, isLab: String(r['Is Lab']).toLowerCase() === 'yes' || r['Is Lab'] === true, building: String(r['Building'] || 'Main') });
     }
 
-    // Parse TimeSlots
+    // Parse TimeSlots — keep ALL periods including breaks
     const tsRows = sheetRows('TimeSlots');
     const daysSet = new Set();
     for (const r of tsRows) {
       const isBreak = String(r['Is Break']).toLowerCase() === 'yes' || r['Is Break'] === true;
-      if (!isBreak) {
-        String(r['Days'] || '').split(',').forEach(d => daysSet.add(d.trim()));
-        result.timeSlots.periods.push({ periodNumber: Number(r['Period Number']), startTime: String(r['Start Time'] || ''), endTime: String(r['End Time'] || ''), isBreak: false });
-      }
+      String(r['Days'] || '').split(',').forEach(d => { if (d.trim()) daysSet.add(d.trim()); });
+      result.timeSlots.periods.push({
+        periodNumber: Number(r['Period Number']),
+        startTime: String(r['Start Time'] || ''),
+        endTime: String(r['End Time'] || ''),
+        isBreak
+      });
     }
     result.timeSlots.days = [...daysSet].filter(Boolean);
 
@@ -374,16 +377,14 @@ router.post('/generate', auth, async (req, res) => {
     }
 
     // Save classrooms
-    const classroomMap = {};
     for (const r of data.classrooms) {
-      let room = await Classroom.findOne({ name: r.name, createdBy: userId });
-      if (!room) room = await Classroom.create({
+      const exists = await Classroom.findOne({ name: r.name, createdBy: userId });
+      if (!exists) await Classroom.create({
         name: r.name, capacity: r.capacity || 30,
         isLab: r.isLab === true || r.isLab === 'Yes' || r.isLab === 'true',
         building: r.building || 'Main',
         createdBy: userId
       });
-      classroomMap[r.name] = room._id;
     }
 
     // Save teachers
@@ -403,14 +404,12 @@ router.post('/generate', auth, async (req, res) => {
       teacherMap[t.name] = teacher._id;
     }
 
-    // Save classes with assignments
+    // Save classes with subject-teacher assignments
     for (const c of data.classes) {
-      let cls = await Class.findOne({ name: c.name, section: c.section, createdBy: userId });
-      if (!cls) {
-        const classAssignments = (data.assignments || []).filter(
-          a => a.className === c.name && a.section === c.section
-        );
-        const subjects = classAssignments
+      const exists = await Class.findOne({ name: c.name, section: c.section, createdBy: userId });
+      if (!exists) {
+        const subjects = (data.assignments || [])
+          .filter(a => a.className === c.name && a.section === c.section)
           .map(a => ({ subject: subjectMap[a.subjectName], teacher: teacherMap[a.teacherName] }))
           .filter(s => s.subject && s.teacher);
         await Class.create({
@@ -421,17 +420,18 @@ router.post('/generate', auth, async (req, res) => {
       }
     }
 
-    // Save timeslot
-    let timeslot = await Timeslot.findOne({ createdBy: userId });
-    if (!timeslot && data.timeSlots) {
-      timeslot = await Timeslot.create({
+    // Save timeslot — include ALL periods (breaks too) so GA filters correctly
+    const existingTimeslot = await Timeslot.findOne({ createdBy: userId });
+    if (!existingTimeslot && data.timeSlots) {
+      // Rebuild full periods array including breaks from original parsed data
+      await Timeslot.create({
         days: data.timeSlots.days,
         periods: data.timeSlots.periods,
         createdBy: userId
       });
     }
 
-    // Fetch all saved data for GA
+    // Fetch everything and run GA
     const [classes, teachers, classrooms, timeslots] = await Promise.all([
       Class.find({ createdBy: userId }).populate('subjects.subject subjects.teacher'),
       Teacher.find({ createdBy: userId }),
@@ -439,8 +439,15 @@ router.post('/generate', auth, async (req, res) => {
       Timeslot.find({ createdBy: userId })
     ]);
 
-    if (!classes.length || !teachers.length || !classrooms.length || !timeslots.length) {
-      return res.status(400).json({ error: 'Missing required data for timetable generation' });
+    if (!classes.length) return res.status(400).json({ error: 'No classes found after import' });
+    if (!teachers.length) return res.status(400).json({ error: 'No teachers found after import' });
+    if (!classrooms.length) return res.status(400).json({ error: 'No classrooms found after import' });
+    if (!timeslots.length) return res.status(400).json({ error: 'No timeslot configuration found' });
+
+    // Verify at least one class has subjects
+    const classesWithSubjects = classes.filter(c => c.subjects && c.subjects.length > 0);
+    if (!classesWithSubjects.length) {
+      return res.status(400).json({ error: 'No classes have subjects assigned. Check Assignments sheet.' });
     }
 
     const { chromosome, fitnessScore, generation } = runGA(
@@ -448,15 +455,22 @@ router.post('/generate', auth, async (req, res) => {
       { populationSize: 50, maxGenerations: 200 }
     );
 
-    const entries = chromosome.map(gene => ({
-      day: gene.day, period: gene.period,
-      class: gene.classId, subject: gene.subjectId,
-      teacher: gene.teacherId, classroom: gene.classroomId
-    }));
+    const entries = chromosome
+      .map(gene => ({
+        day: gene.day, period: gene.period,
+        class: gene.classId, subject: gene.subjectId,
+        teacher: gene.teacherId, classroom: gene.classroomId
+      }))
+      .filter(e => e.class && e.subject && e.teacher && e.classroom);
+
+    if (!entries.length) {
+      return res.status(400).json({ error: 'GA produced no valid entries. Check that subjects and teachers are properly assigned.' });
+    }
 
     const timetable = await Timetable.create({
       name: `Excel Import - ${new Date().toLocaleDateString()}`,
-      entries, fitnessScore: Math.round(fitnessScore * 100),
+      entries,
+      fitnessScore: Math.round(fitnessScore * 100),
       generation, status: 'completed', createdBy: userId
     });
 
