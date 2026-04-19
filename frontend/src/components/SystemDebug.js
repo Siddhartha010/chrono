@@ -18,23 +18,19 @@ export default function SystemDebug() {
     // Test 1: Basic API connectivity
     addResult('API Base URL', 'info', `Testing: ${api.defaults.baseURL}`);
     
-    // Test 1a: Try to wake up Render backend
+    // Test 1a: Try root endpoint first
     try {
-      addResult('Wake Up Backend', 'info', 'Attempting to wake up Render backend...');
       const baseURL = api.defaults.baseURL.replace('/api', '');
-      const wakeResponse = await fetch(baseURL, { method: 'GET' });
-      if (wakeResponse.ok) {
-        const data = await wakeResponse.json();
-        addResult('Wake Up Backend', 'success', 'Backend is awake', data);
+      const rootResponse = await fetch(baseURL, { method: 'GET' });
+      if (rootResponse.ok) {
+        const data = await rootResponse.json();
+        addResult('Root Endpoint', 'success', 'Root endpoint accessible', data);
       } else {
-        addResult('Wake Up Backend', 'warning', `Backend responded with ${wakeResponse.status}`);
+        addResult('Root Endpoint', 'error', `Root endpoint failed: ${rootResponse.status}`);
       }
     } catch (error) {
-      addResult('Wake Up Backend', 'warning', 'Could not wake backend', error.message);
+      addResult('Root Endpoint', 'error', 'Root endpoint not accessible', error.message);
     }
-
-    // Wait a moment for backend to fully wake up
-    await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Test 1b: Health check
     try {
@@ -46,20 +42,6 @@ export default function SystemDebug() {
         status: error.response?.status,
         statusText: error.response?.statusText
       });
-      
-      // Try alternative health check
-      try {
-        const baseURL = api.defaults.baseURL.replace('/api', '');
-        const altResponse = await fetch(`${baseURL}/health`);
-        if (altResponse.ok) {
-          const data = await altResponse.json();
-          addResult('Alternative Health Check', 'success', 'Backend accessible via direct route', data);
-        }
-      } catch (altError) {
-        addResult('Alternative Health Check', 'error', 'All health checks failed');
-        setTesting(false);
-        return;
-      }
     }
 
     // Test 2: Authentication
@@ -76,47 +58,54 @@ export default function SystemDebug() {
       addResult('Auth Test', 'error', 'Authentication failed', error.response?.status);
     }
 
-    // Test 3: Excel route basic test
+    // Test 3: Excel routes - test each one individually
     try {
       const response = await api.get('/excel/test');
-      addResult('Excel Route Test', 'success', 'Excel routes are accessible', response.data);
+      addResult('Excel Test Route', 'success', 'Excel test route accessible', response.data);
     } catch (error) {
-      addResult('Excel Route Test', 'error', 'Excel routes not working', {
+      addResult('Excel Test Route', 'error', 'Excel test route failed', {
         status: error.response?.status,
         message: error.response?.data || error.message
       });
     }
 
-    // Test 4: Template download (no auth)
+    // Test 4: Template download (direct fetch)
     try {
       addResult('Template Download', 'info', 'Attempting template download...');
-      const response = await api.get('/excel/template', { 
-        responseType: 'blob',
-        timeout: 10000
+      const baseURL = api.defaults.baseURL;
+      const response = await fetch(`${baseURL}/excel/template`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Accept': 'text/csv,*/*'
+        }
       });
       
-      addResult('Template Download', 'success', `Downloaded ${response.data.size} bytes`, {
-        contentType: response.headers['content-type'],
-        size: response.data.size
-      });
+      if (response.ok) {
+        const blob = await response.blob();
+        addResult('Template Download', 'success', `Downloaded ${blob.size} bytes`, {
+          contentType: response.headers.get('content-type'),
+          size: blob.size
+        });
 
-      // Try to create download
-      const blob = new Blob([response.data], { type: response.headers['content-type'] });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'debug-template.csv';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      addResult('File Creation', 'success', 'File download triggered successfully');
+        // Try to create download
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'debug-template.csv';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        addResult('File Creation', 'success', 'File download triggered successfully');
+      } else {
+        const errorText = await response.text();
+        addResult('Template Download', 'error', `Template download failed: ${response.status}`, errorText);
+      }
     } catch (error) {
       addResult('Template Download', 'error', 'Template download failed', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        message: error.response?.data || error.message,
+        message: error.message,
         code: error.code
       });
     }
