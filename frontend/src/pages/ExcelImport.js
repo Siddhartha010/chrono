@@ -7,6 +7,7 @@ import {
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import SystemDebug from '../components/SystemDebug';
+import ExcelTest from '../components/ExcelTest';
 
 export default function ExcelImport() {
   const navigate = useNavigate();
@@ -20,20 +21,7 @@ export default function ExcelImport() {
 
   const downloadTemplate = async () => {
     try {
-      toast.loading('Waking up backend and generating template...', { id: 'download' });
-      
-      // Wake up Render backend first
-      const baseURL = api.defaults.baseURL.replace('/api', '');
-      
-      // Multi-step wake up
-      await fetch(baseURL);
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      await fetch(`${baseURL}/health`);
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      await fetch(`${baseURL}/api/health`);
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      toast.loading('Backend is awake, downloading template...', { id: 'download' });
+      toast.loading('Generating template...', { id: 'download' });
       
       const response = await api.get('/excel/template', { 
         responseType: 'blob',
@@ -46,28 +34,18 @@ export default function ExcelImport() {
         throw new Error('Empty file received');
       }
       
-      // Determine file type and name based on content-type
-      const contentType = response.headers['content-type'];
-      let fileName = 'ChronoGen_Template.csv';
-      let mimeType = 'text/csv';
-      
-      if (contentType && contentType.includes('spreadsheet')) {
-        fileName = 'ChronoGen_Template.xlsx';
-        mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      }
-      
-      const blob = new Blob([response.data], { type: mimeType });
+      const blob = new Blob([response.data], { type: 'text/csv' });
       
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = fileName;
+      link.download = 'ChronoGen_Template.csv';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      toast.success(`Template downloaded successfully as ${fileName}!`, { id: 'download' });
+      toast.success('Template downloaded successfully!', { id: 'download' });
     } catch (error) {
       console.error('Download error:', error);
       
@@ -76,11 +54,9 @@ export default function ExcelImport() {
       } else if (error.response?.status === 500) {
         toast.error('Server error generating template', { id: 'download' });
       } else if (error.code === 'ECONNABORTED') {
-        toast.error('Download timeout - backend may be sleeping. Try the SystemDebug wake-up button.', { id: 'download' });
-      } else if (error.response?.status === 404) {
-        toast.error('Backend is sleeping. Use the SystemDebug wake-up button first.', { id: 'download' });
+        toast.error('Download timeout - please try again', { id: 'download' });
       } else {
-        toast.error('Failed to download template. Try SystemDebug wake-up first.', { id: 'download' });
+        toast.error('Failed to download template: ' + (error.response?.data?.error || error.message), { id: 'download' });
       }
     }
   };
@@ -350,18 +326,7 @@ export default function ExcelImport() {
       </div>
 
       <div style={{ marginTop: 24, maxWidth: 1000 }}>
-        <div style={{ 
-          background: '#fef3c7', 
-          border: '1px solid #f59e0b', 
-          borderRadius: 8, 
-          padding: 12, 
-          marginBottom: 16,
-          fontSize: '0.9rem'
-        }}>
-          <strong>⚠️ Render Backend Notice:</strong> If downloads fail with 404 errors, the backend may be sleeping. 
-          Use the SystemDebug "Wake Up Backend" button first, then try downloading.
-        </div>
-        
+        <ExcelTest />
         <SystemDebug />
         
         {/* Step 1: Download Template */}
