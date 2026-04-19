@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 
 export default function ExcelImport() {
   const navigate = useNavigate();
@@ -15,56 +16,94 @@ export default function ExcelImport() {
   const [parsedData, setParsedData] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  const downloadTemplate = async () => {
+  const downloadTemplate = () => {
     try {
       toast.loading('Generating template...', { id: 'download' });
       
-      let response;
-      try {
-        // Try original route first
-        response = await api.get('/excel/template', { 
-          responseType: 'blob',
-          timeout: 30000
-        });
-      } catch (originalError) {
-        console.log('Original route failed, trying backup via auth:', originalError.message);
-        // Try backup route via auth
-        response = await api.get('/auth/excel-template', { 
-          responseType: 'blob',
-          timeout: 30000
-        });
-      }
-      
-      console.log('Response received:', response.headers['content-type']);
-      
-      if (response.data.size === 0) {
-        throw new Error('Empty file received');
-      }
-      
-      const blob = new Blob([response.data], { type: 'text/csv' });
-      
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'ChronoGen_Template.csv';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      const wb = XLSX.utils.book_new();
+
+      // 1. Classes Sheet
+      const classesData = [
+        ['Class Name', 'Section', 'Strength', 'Course'],
+        ['BTech CSE', 'A', 60, 'BTech'],
+        ['BTech CSE', 'B', 58, 'BTech'],
+        ['BCS', 'A', 45, 'BCS']
+      ];
+      const classesWs = XLSX.utils.aoa_to_sheet(classesData);
+      XLSX.utils.book_append_sheet(wb, classesWs, 'Classes');
+
+      // 2. Subjects Sheet
+      const subjectsData = [
+        ['Subject Name', 'Subject Code', 'Hours Per Week', 'Is Lab', 'Course'],
+        ['Data Structures', 'CS201', 4, 'No', 'BTech'],
+        ['Database Systems', 'CS301', 3, 'No', 'BTech'],
+        ['Database Lab', 'CS301L', 2, 'Yes', 'BTech']
+      ];
+      const subjectsWs = XLSX.utils.aoa_to_sheet(subjectsData);
+      XLSX.utils.book_append_sheet(wb, subjectsWs, 'Subjects');
+
+      // 3. Teachers Sheet
+      const teachersData = [
+        ['Teacher Name', 'Email', 'Subjects (comma separated)', 'Max Hours Per Day', 'Max Hours Per Week', 'Course'],
+        ['Dr. John Smith', 'john@college.edu', 'Data Structures,Algorithms', 6, 24, 'BTech'],
+        ['Prof. Jane Doe', 'jane@college.edu', 'Database Systems,Database Lab', 5, 20, 'BTech']
+      ];
+      const teachersWs = XLSX.utils.aoa_to_sheet(teachersData);
+      XLSX.utils.book_append_sheet(wb, teachersWs, 'Teachers');
+
+      // 4. Classrooms Sheet
+      const classroomsData = [
+        ['Room Name', 'Capacity', 'Is Lab', 'Building'],
+        ['Room 101', 60, 'No', 'Main Block'],
+        ['Lab 201', 30, 'Yes', 'CS Block'],
+        ['Room 102', 50, 'No', 'Main Block']
+      ];
+      const classroomsWs = XLSX.utils.aoa_to_sheet(classroomsData);
+      XLSX.utils.book_append_sheet(wb, classroomsWs, 'Classrooms');
+
+      // 5. Time Slots Sheet
+      const timeSlotsData = [
+        ['Days (comma separated)', 'Period Number', 'Start Time', 'End Time', 'Is Break'],
+        ['Monday,Tuesday,Wednesday,Thursday,Friday', 1, '09:00', '10:00', 'No'],
+        ['Monday,Tuesday,Wednesday,Thursday,Friday', 2, '10:00', '11:00', 'No'],
+        ['Monday,Tuesday,Wednesday,Thursday,Friday', 3, '11:00', '11:15', 'Yes'],
+        ['Monday,Tuesday,Wednesday,Thursday,Friday', 4, '11:15', '12:15', 'No'],
+        ['Monday,Tuesday,Wednesday,Thursday,Friday', 5, '12:15', '13:15', 'No']
+      ];
+      const timeSlotsWs = XLSX.utils.aoa_to_sheet(timeSlotsData);
+      XLSX.utils.book_append_sheet(wb, timeSlotsWs, 'TimeSlots');
+
+      // 6. Class-Subject Assignments Sheet
+      const assignmentsData = [
+        ['Class Name', 'Section', 'Subject Name', 'Teacher Name'],
+        ['BTech CSE', 'A', 'Data Structures', 'Dr. John Smith'],
+        ['BTech CSE', 'A', 'Database Systems', 'Prof. Jane Doe'],
+        ['BTech CSE', 'B', 'Data Structures', 'Dr. John Smith']
+      ];
+      const assignmentsWs = XLSX.utils.aoa_to_sheet(assignmentsData);
+      XLSX.utils.book_append_sheet(wb, assignmentsWs, 'Assignments');
+
+      // 7. Instructions Sheet
+      const instructionsData = [
+        ['Sheet', 'Instructions'],
+        ['Classes', 'Add all classes with their sections and student strength. Course field helps organize classes by program.'],
+        ['Subjects', 'List all subjects with codes and weekly hours. Mark lab subjects as "Yes" in Is Lab column.'],
+        ['Teachers', 'Add teacher details with subjects they can teach (comma separated). Set realistic hour limits.'],
+        ['Classrooms', 'List all available rooms with capacity. Mark lab rooms as "Yes" for lab subjects.'],
+        ['TimeSlots', 'Define your weekly schedule with periods and breaks. Use 24-hour format for times.'],
+        ['Assignments', 'Assign subjects to classes with specific teachers. Each row creates a class-subject-teacher mapping.'],
+        ['General', 'Fill all sheets completely. Ensure teacher names, subject names match exactly across sheets.']
+      ];
+      const instructionsWs = XLSX.utils.aoa_to_sheet(instructionsData);
+      XLSX.utils.book_append_sheet(wb, instructionsWs, 'Instructions');
+
+      // Write and download
+      XLSX.writeFile(wb, 'ChronoGen_Template.xlsx');
       
       toast.success('Template downloaded successfully!', { id: 'download' });
     } catch (error) {
       console.error('Download error:', error);
-      
-      if (error.response?.status === 401) {
-        toast.error('Please login to download template', { id: 'download' });
-      } else if (error.response?.status === 500) {
-        toast.error('Server error generating template', { id: 'download' });
-      } else if (error.code === 'ECONNABORTED') {
-        toast.error('Download timeout - please try again', { id: 'download' });
-      } else {
-        toast.error('Failed to download template: ' + (error.response?.data?.error || error.message), { id: 'download' });
-      }
+      toast.error('Failed to generate template: ' + error.message, { id: 'download' });
     }
   };
 

@@ -45,15 +45,29 @@ class ExcelService {
       { header: 'Subjects (comma separated)', key: 'subjects', width: 30 },
       { header: 'Max Hours Per Day', key: 'maxHoursPerDay', width: 18 },
       { header: 'Max Hours Per Week', key: 'maxHoursPerWeek', width: 20 },
-      { header: 'Course', key: 'course', width: 15 }
+      { header: 'Course', key: 'course', width: 15 },
+      { header: 'Preferred Building', key: 'preferredBuilding', width: 20 }
     ];
     
     teachersSheet.addRows([
-      { name: 'Dr. John Smith', email: 'john@college.edu', subjects: 'Data Structures,Algorithms', maxHoursPerDay: 6, maxHoursPerWeek: 24, course: 'BTech' },
-      { name: 'Prof. Jane Doe', email: 'jane@college.edu', subjects: 'Database Systems,Database Lab', maxHoursPerDay: 5, maxHoursPerWeek: 20, course: 'BTech' }
+      { name: 'Dr. John Smith', email: 'john@college.edu', subjects: 'Data Structures,Algorithms', maxHoursPerDay: 6, maxHoursPerWeek: 24, course: 'BTech', preferredBuilding: 'CS Block' },
+      { name: 'Prof. Jane Doe', email: 'jane@college.edu', subjects: 'Database Systems,Database Lab', maxHoursPerDay: 5, maxHoursPerWeek: 20, course: 'BTech', preferredBuilding: 'Main Block' }
     ]);
 
-    // 4. Classrooms Sheet
+    // 4. Teacher Availability Sheet (New)
+    const availabilitySheet = workbook.addWorksheet('TeacherAvailability');
+    availabilitySheet.columns = [
+      { header: 'Teacher Name', key: 'name', width: 20 },
+      { header: 'Day', key: 'day', width: 15 },
+      { header: 'Unavailable Periods (comma separated)', key: 'periods', width: 35 }
+    ];
+
+    availabilitySheet.addRows([
+      { name: 'Dr. John Smith', day: 'Monday', periods: '1, 2' },
+      { name: 'Prof. Jane Doe', day: 'Wednesday', periods: '4, 5' }
+    ]);
+
+    // 5. Classrooms Sheet
     const classroomsSheet = workbook.addWorksheet('Classrooms');
     classroomsSheet.columns = [
       { header: 'Room Name', key: 'name', width: 15 },
@@ -86,19 +100,21 @@ class ExcelService {
       { days: 'Monday,Tuesday,Wednesday,Thursday,Friday', periodNumber: 5, startTime: '12:15', endTime: '13:15', isBreak: 'No' }
     ]);
 
-    // 6. Class-Subject Assignments Sheet
+    // 7. Class-Subject Assignments Sheet
     const assignmentsSheet = workbook.addWorksheet('Assignments');
     assignmentsSheet.columns = [
       { header: 'Class Name', key: 'className', width: 15 },
       { header: 'Section', key: 'section', width: 10 },
       { header: 'Subject Name', key: 'subjectName', width: 25 },
-      { header: 'Teacher Name', key: 'teacherName', width: 20 }
+      { header: 'Teacher Name', key: 'teacherName', width: 20 },
+      { header: 'Is Consecutive (Yes/No)', key: 'isConsecutive', width: 22 },
+      { header: 'Preferred Room', key: 'preferredRoom', width: 18 }
     ];
     
     assignmentsSheet.addRows([
-      { className: 'BTech CSE', section: 'A', subjectName: 'Data Structures', teacherName: 'Dr. John Smith' },
-      { className: 'BTech CSE', section: 'A', subjectName: 'Database Systems', teacherName: 'Prof. Jane Doe' },
-      { className: 'BTech CSE', section: 'B', subjectName: 'Data Structures', teacherName: 'Dr. John Smith' }
+      { className: 'BTech CSE', section: 'A', subjectName: 'Data Structures', teacherName: 'Dr. John Smith', isConsecutive: 'Yes', preferredRoom: 'Room 101' },
+      { className: 'BTech CSE', section: 'A', subjectName: 'Database Systems', teacherName: 'Prof. Jane Doe', isConsecutive: 'No', preferredRoom: '' },
+      { className: 'BTech CSE', section: 'B', subjectName: 'Data Structures', teacherName: 'Dr. John Smith', isConsecutive: 'Yes', preferredRoom: 'Room 101' }
     ]);
 
     // 7. Instructions Sheet

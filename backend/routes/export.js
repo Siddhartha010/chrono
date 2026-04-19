@@ -6,40 +6,111 @@ const PDFDocument = require('pdfkit');
 const router = express.Router();
 
 router.get('/:id/excel', auth, async (req, res) => {
-  const tt = await Timetable.findOne({ _id: req.params.id, createdBy: req.user.id })
-    .populate('entries.class entries.subject entries.teacher entries.classroom');
-  if (!tt) return res.status(404).json({ message: 'Not found' });
+  try {
+    const tt = await Timetable.findOne({ _id: req.params.id, createdBy: req.user.id })
+      .populate('entries.class entries.subject entries.teacher entries.classroom');
+    if (!tt) return res.status(404).json({ message: 'Not found' });
 
-  const workbook = new ExcelJS.Workbook();
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'ChronoGen';
+    workbook.lastModifiedBy = 'ChronoGen';
+    workbook.created = new Date();
 
-  // Group by class
-  const byClass = {};
-  for (const e of tt.entries) {
-    const key = e.class?.name || 'Unknown';
-    if (!byClass[key]) byClass[key] = [];
-    byClass[key].push(e);
-  }
+    // 1. Summary Sheet
+    const summarySheet = workbook.addWorksheet('Summary');
+    summarySheet.columns = [
+      { header: 'Parameter', key: 'param', width: 25 },
+      { header: 'Value', key: 'value', width: 40 }
+    ];
 
-  for (const [className, entries] of Object.entries(byClass)) {
-    const sheet = workbook.addWorksheet(className);
-    const days = [...new Set(entries.map(e => e.day))].sort();
-    const periods = [...new Set(entries.map(e => e.period))].sort((a, b) => a - b);
+    summarySheet.addRows([
+      ['Timetable Name', tt.name],
+      ['Fitness Score', `${tt.fitnessScore}%`],
+      ['Generation', tt.generation],
+      ['Population Size', tt.constraints?.populationSize || 50],
+      ['Max Generations', tt.constraints?.maxGenerations || 200],
+      ['Mutation Rate', tt.constraints?.mutationRate || 0.1],
+      ['Crossover Rate', tt.constraints?.crossoverRate || 0.8],
+      ['Status', tt.status.toUpperCase()],
+      ['Generated On', new Date(tt.createdAt).toLocaleString()]
+    ]);
 
-    sheet.addRow(['Period/Day', ...days]);
-    for (const period of periods) {
-      const row = [`Period ${period}`];
-      for (const day of days) {
-        const entry = entries.find(e => e.day === day && e.period === period);
-        row.push(entry ? `${entry.subject?.name || ''}\n${entry.teacher?.name || ''}` : '-');
-      }
-      sheet.addRow(row);
+    // Style Summary Sheet
+    summarySheet.getRow(1).font = { bold: true };
+    summarySheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // 2. Class Timetables
+    const byClass = {};
+    for (const e of tt.entries) {
+      const key = e.class?.name || 'Unknown';
+      if (!byClass[key]) byClass[key] = [];
+      byClass[key].push(e);
     }
-  }
 
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', 'attachment; filename=timetable.xlsx');
-  await workbook.xlsx.write(res);
-  res.end();
+    for (const [className, entries] of Object.entries(byClass)) {
+      const sheet = workbook.addWorksheet(className);
+      const days = [...new Set(entries.map(e => e.day))].sort((a, b) => {
+        const order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        return order.indexOf(a) - order.indexOf(b);
+      });
+      const periods = [...new Set(entries.map(e => e.period))].sort((a, b) => a - b);
+
+      // Header Row
+      const headerRow = sheet.addRow(['Period/Day', ...days]);
+      headerRow.font = { bold: true };
+      headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFD9EAD3' }
+      };
+
+      for (const period of periods) {
+        const rowData = [`Period ${period}`];
+        for (const day of days) {
+          const entry = entries.find(e => e.day === day && e.period === period);
+          if (entry) {
+            rowData.push(`${entry.subject?.name || ''}\n${entry.teacher?.name || ''}\n[${entry.classroom?.name || 'No Room'}]`);
+          } else {
+            rowData.push('-');
+          }
+        }
+        const row = sheet.addRow(rowData);
+        row.height = 45; // Taller rows for multi-line text
+        row.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      }
+
+      // Column widths
+      sheet.getColumn(1).width = 15;
+      for (let i = 2; i <= days.length + 1; i++) {
+        sheet.getColumn(i).width = 25;
+      }
+
+      // Add borders to all cells
+      sheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' }
+          };
+        });
+      });
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${tt.name.replace(/\s+/g, '_')}.xlsx"`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('Excel Export Error:', err);
+    res.status(500).json({ message: 'Error generating Excel file' });
+  }
 });
 
 router.get('/:id/pdf', auth, async (req, res) => {

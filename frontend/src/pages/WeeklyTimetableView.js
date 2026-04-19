@@ -115,30 +115,26 @@ export default function WeeklyTimetableView() {
     doc.save(`week-${weekNumber}-timetable.pdf`);
   };
 
-  const exportExcel = () => {
-    const wb = XLSX.utils.book_new();
-    const grouped = {};
-    for (const e of tt.entries) {
-      const key = e.class?.name || 'Unknown';
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(e);
+  const exportExcel = async () => {
+    try {
+      toast.loading('Preparing Excel file...', { id: 'excel-export' });
+      const response = await api.get(`/export/${id}/excel`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `week-${weekNumber}-timetable.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Excel exported successfully', { id: 'excel-export' });
+    } catch (err) {
+      console.error('Excel Export Error:', err);
+      toast.error('Failed to export Excel', { id: 'excel-export' });
     }
-    for (const [cls, ents] of Object.entries(grouped)) {
-      const clsDays = [...new Set(ents.map(e => e.day))].sort();
-      const clsPeriods = [...new Set(ents.map(e => e.period))].sort((a, b) => a - b);
-      const rows = [['Day', ...clsPeriods.map(p => `Period ${p}`)]];
-      for (const d of clsDays) {
-        const row = [d];
-        for (const p of clsPeriods) {
-          const e = ents.find(x => x.day === d && x.period === p);
-          row.push(e ? `${e.subject?.name || ''} (${e.teacher?.name || ''})` : '-');
-        }
-        rows.push(row);
-      }
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, cls.slice(0, 31));
-    }
-    XLSX.writeFile(wb, `week-${weekNumber}-timetable.xlsx`);
   };
 
   const updateName = async () => {
