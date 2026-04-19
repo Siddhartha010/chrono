@@ -479,8 +479,8 @@ class SemesterTimetableGenerator {
     const conflictPenalty = (conflicts / totalEntries) * 100;
     const fitness = Math.max(0, 100 - conflictPenalty);
     
-  // Post-processing optimization to improve timetable quality
-  postProcessOptimization(entries) {
+    return fitness;
+  }
     console.log('Starting post-processing optimization...');
     
     let optimizedEntries = [...entries];
