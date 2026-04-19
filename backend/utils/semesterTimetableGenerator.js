@@ -481,6 +481,8 @@ class SemesterTimetableGenerator {
     
     return fitness;
   }
+  // Post-processing optimization to improve timetable quality
+  postProcessOptimization(entries) {
     console.log('Starting post-processing optimization...');
     
     let optimizedEntries = [...entries];
