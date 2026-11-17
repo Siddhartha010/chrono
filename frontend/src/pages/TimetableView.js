@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Download, Users, Search, Trash2, RefreshCw } from 'lucide-react';
+import { Download, Users, Search, Trash2, RefreshCw, Edit2, Check, X } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
@@ -16,6 +16,8 @@ export default function TimetableView() {
   const [filterClass, setFilterClass] = useState('');
   const [filterTeacher, setFilterTeacher] = useState('');
   const [filterSubject, setFilterSubject] = useState('');
+  const [editingName, setEditingName] = useState(false);
+  const [newName, setNewName] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -23,6 +25,7 @@ export default function TimetableView() {
       api.get('/timeslots')
     ]).then(([ttRes, tsRes]) => {
       setTt(ttRes.data);
+      setNewName(ttRes.data.name || 'Generated Timetable');
       if (tsRes.data.length > 0) setTimeslotConfig(tsRes.data[0]);
       setLoading(false);
     }).catch(() => { toast.error('Failed to load'); setLoading(false); });
@@ -120,6 +123,26 @@ export default function TimetableView() {
     XLSX.writeFile(wb, 'timetable.xlsx');
   };
 
+  const updateName = async () => {
+    if (!newName.trim()) {
+      toast.error('Name cannot be empty');
+      return;
+    }
+    try {
+      const { data } = await api.put(`/timetable/${id}/name`, { name: newName.trim() });
+      setTt({ ...tt, name: data.name });
+      setEditingName(false);
+      toast.success('Name updated');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update name');
+    }
+  };
+
+  const cancelEdit = () => {
+    setNewName(tt.name || 'Generated Timetable');
+    setEditingName(false);
+  };
+
   const del = async () => {
     if (!window.confirm('Delete this timetable?')) return;
     await api.delete(`/timetable/${id}`);
@@ -131,7 +154,33 @@ export default function TimetableView() {
     <div className="page">
       <div className="topbar">
         <div>
-          <h2>Timetable View</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            {editingName ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input 
+                  className="form-input" 
+                  style={{ fontSize: '1.25rem', fontWeight: 600, padding: '4px 8px', minWidth: 250 }}
+                  value={newName} 
+                  onChange={e => setNewName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' ? updateName() : e.key === 'Escape' ? cancelEdit() : null}
+                  autoFocus
+                />
+                <button className="btn btn-success btn-sm" onClick={updateName}>
+                  <Check size={14} />
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={cancelEdit}>
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2 style={{ margin: 0 }}>{tt.name || 'Generated Timetable'}</h2>
+                <button className="btn btn-secondary btn-sm" onClick={() => setEditingName(true)}>
+                  <Edit2 size={14} />
+                </button>
+              </div>
+            )}
+          </div>
           <span className={`fitness-badge ${fitnessClass(tt.fitnessScore)}`} style={{ marginTop: 4, display: 'inline-flex' }}>
             Efficiency: {tt.fitnessScore}%
           </span>

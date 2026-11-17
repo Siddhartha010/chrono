@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, UserCheck, Users, RefreshCw, X, CheckCircle, XCircle, Clock, ArrowRightLeft } from 'lucide-react';
+import { Plus, UserCheck, Users, RefreshCw, X, CheckCircle, XCircle, Clock, ArrowRightLeft, Download, Share2 } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 export default function SubstituteManager() {
   const [substitutes, setSubstitutes] = useState([]);
@@ -34,6 +37,175 @@ export default function SubstituteManager() {
   const handleTimetableSelect = (timetableId) => {
     setSelectedTimetable(timetableId);
     loadTimetableView(timetableId);
+  };
+
+  const exportUpdatedPDF = () => {
+    if (!timetableView) return;
+    
+    const doc = new jsPDF({ orientation: 'landscape' });
+    doc.setFontSize(16);
+    doc.text(`ChronoGen - ${timetableView.name}`, 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Updated Timetable with Substitutions | Generated: ${new Date().toLocaleDateString()}`, 14, 22);
+    doc.text(`Fitness: ${timetableView.fitnessScore}% | Active Substitutions: ${timetableView.substitutes.length}`, 14, 28);
+
+    // Create timetable data
+    const days = timetableView.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const periods = timetableView.periods || [];
+    
+    const head = [['Day', ...periods.map(p => `P${p.periodNumber}\n${p.startTime}-${p.endTime}`)]];
+    const body = days.map(day => {
+      const row = [day];
+      periods.forEach(period => {
+        const entry = timetableView.entries.find(e => e.day === day && e.period === period.periodNumber);
+        const substitute = timetableView.substitutes.find(s => 
+          s.originalEntry.day === day && s.originalEntry.period === period.periodNumber && s.status === 'approved'
+        );
+        
+        if (entry) {
+          let cellText = `${entry.class?.name || ''}\n${entry.subject?.name || ''}`;
+          if (substitute) {
+            cellText += substitute.isLibrary ? '\n📚 Library' : `\n${substitute.substituteTeacher?.name || ''} (SUB)`;
+          } else {
+            cellText += `\n${entry.teacher?.name || ''}`;
+          }
+          cellText += `\n${entry.classroom?.name || ''}`;
+          row.push(cellText);
+        } else {
+          row.push('Free');
+        }
+      });
+      return row;
+    });
+
+    autoTable(doc, { 
+      head, 
+      body, 
+      startY: 35, 
+      styles: { fontSize: 8, cellPadding: 3 }, 
+      headStyles: { fillColor: [99, 102, 241] },
+      didParseCell: (data) => {
+        // Highlight substituted cells
+        if (data.row.index > 0 && data.column.index > 0) {
+          const day = days[data.row.index - 1];
+          const period = periods[data.column.index - 1];
+          if (period) {
+            const substitute = timetableView.substitutes.find(s => 
+              s.originalEntry.day === day && s.originalEntry.period === period.periodNumber && s.status === 'approved'
+            );
+            if (substitute) {
+              data.cell.styles.fillColor = substitute.isLibrary ? [254, 243, 199] : [219, 234, 254];
+            }
+          }
+        }
+      }
+    });
+
+    // Add legend
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(10);
+    doc.text('Legend:', 14, finalY);
+    doc.setFillColor(219, 234, 254);
+    doc.rect(14, finalY + 3, 5, 3, 'F');
+    doc.text('Substitute Teacher', 22, finalY + 5);
+    doc.setFillColor(254, 243, 199);
+    doc.rect(80, finalY + 3, 5, 3, 'F');
+    doc.text('Library Period', 88, finalY + 5);
+    
+    doc.save(`${timetableView.name}_updated.pdf`);
+    toast.success('PDF exported successfully');
+  };
+
+  const exportUpdatedExcel = () => {
+    if (!timetableView) return;
+    
+    const wb = XLSX.utils.book_new();
+    const days = timetableView.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const periods = timetableView.periods || [];
+    
+    // Create main timetable sheet
+    const rows = [['Day', ...periods.map(p => `P${p.periodNumber} (${p.startTime}-${p.endTime})`)]];
+    
+    days.forEach(day => {
+      const row = [day];
+      periods.forEach(period => {
+        const entry = timetableView.entries.find(e => e.day === day && e.period === period.periodNumber);
+        const substitute = timetableView.substitutes.find(s => 
+          s.originalEntry.day === day && s.originalEntry.period === period.periodNumber && s.status === 'approved'
+        );
+        
+        if (entry) {
+          let cellText = `${entry.class?.name || ''} - ${entry.subject?.name || ''}`;
+          if (substitute) {
+            cellText += substitute.isLibrary ? ' | 📚 Library' : ` | ${substitute.substituteTeacher?.name || ''} (SUB)`;
+          } else {
+            cellText += ` | ${entry.teacher?.name || ''}`;
+          }
+          cellText += ` | ${entry.classroom?.name || ''}`;
+          row.push(cellText);
+        } else {
+          row.push('Free');
+        }
+      });
+      rows.push(row);
+    });
+    
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Updated Timetable');
+    
+    // Create substitutions summary sheet
+    if (timetableView.substitutes.length > 0) {
+      const subRows = [['Type', 'Day', 'Period', 'Class', 'Subject', 'Original Teacher', 'Substitute/Action', 'Reason']];
+      timetableView.substitutes.forEach(sub => {
+        subRows.push([
+          sub.type === 'substitute' ? 'Substitute' : 'Swap',
+          sub.originalEntry.day,
+          `P${sub.originalEntry.period}`,
+          sub.originalEntry.class?.name || '',
+          sub.originalEntry.subject?.name || '',
+          sub.originalEntry.teacher?.name || '',
+          sub.isLibrary ? '📚 Library' : (sub.substituteTeacher?.name || sub.swapWith?.teacher?.name || ''),
+          sub.reason || ''
+        ]);
+      });
+      const subWs = XLSX.utils.aoa_to_sheet(subRows);
+      XLSX.utils.book_append_sheet(wb, subWs, 'Substitutions');
+    }
+    
+    XLSX.writeFile(wb, `${timetableView.name}_updated.xlsx`);
+    toast.success('Excel exported successfully');
+  };
+
+  const shareUpdatedTimetable = async () => {
+    if (!timetableView) return;
+    
+    const shareData = {
+      title: `${timetableView.name} - Updated Timetable`,
+      text: `Updated timetable with ${timetableView.substitutes.length} active substitutions. Fitness: ${timetableView.fitnessScore}%`,
+      url: window.location.href
+    };
+    
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        toast.success('Shared successfully');
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          fallbackShare(shareData);
+        }
+      }
+    } else {
+      fallbackShare(shareData);
+    }
+  };
+
+  const fallbackShare = (shareData) => {
+    const shareText = `${shareData.title}\n${shareData.text}\n${shareData.url}`;
+    navigator.clipboard.writeText(shareText).then(() => {
+      toast.success('Link copied to clipboard');
+    }).catch(() => {
+      toast.error('Failed to copy link');
+    });
   };
   useEffect(() => { load(); }, []);
 
@@ -149,7 +321,20 @@ export default function SubstituteManager() {
         <div className="card" style={{ marginTop: 24 }}>
           <div className="card-header">
             <span className="card-title">Updated Timetable - {timetableView.name}</span>
-            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Shows current schedule with substitutions applied</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Shows current schedule with substitutions applied</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn btn-success btn-sm" onClick={exportUpdatedPDF}>
+                  <Download size={14} /> PDF
+                </button>
+                <button className="btn btn-success btn-sm" onClick={exportUpdatedExcel}>
+                  <Download size={14} /> Excel
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={shareUpdatedTimetable}>
+                  <Share2 size={14} /> Share
+                </button>
+              </div>
+            </div>
           </div>
           <div className="timetable-grid" style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
@@ -220,22 +405,27 @@ export default function SubstituteManager() {
             </table>
           </div>
           <div style={{ padding: '12px', background: '#f8fafc', fontSize: '0.75rem', color: '#64748b' }}>
-            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <div style={{ width: 12, height: 12, background: '#dbeafe', border: '1px solid #93c5fd' }}></div>
-                <span>Substitute Teacher</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 12, height: 12, background: '#dbeafe', border: '1px solid #93c5fd' }}></div>
+                  <span>Substitute Teacher</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 12, height: 12, background: '#fef3c7', border: '1px solid #fcd34d' }}></div>
+                  <span>Library Period</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ background: '#2563eb', color: 'white', padding: '1px 4px', borderRadius: 2, fontSize: '0.6rem' }}>SUB</span>
+                  <span>Substitute Assignment</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ background: '#7c3aed', color: 'white', padding: '1px 4px', borderRadius: 2, fontSize: '0.6rem' }}>SWAP</span>
+                  <span>Teacher Swap</span>
+                </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <div style={{ width: 12, height: 12, background: '#fef3c7', border: '1px solid #fcd34d' }}></div>
-                <span>Library Period</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ background: '#2563eb', color: 'white', padding: '1px 4px', borderRadius: 2, fontSize: '0.6rem' }}>SUB</span>
-                <span>Substitute Assignment</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ background: '#7c3aed', color: 'white', padding: '1px 4px', borderRadius: 2, fontSize: '0.6rem' }}>SWAP</span>
-                <span>Teacher Swap</span>
+              <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                Active Substitutions: {timetableView.substitutes.length} | Last Updated: {new Date().toLocaleString()}
               </div>
             </div>
           </div>

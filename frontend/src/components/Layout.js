@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, BookOpen, Building2,
-  Clock, Wand2, LogOut, GraduationCap, CalendarDays, FileText, UserCheck
+  Clock, Wand2, LogOut, GraduationCap, CalendarDays, FileText, UserCheck, AlertTriangle
 } from 'lucide-react';
 
 const adminNav = [
@@ -11,12 +11,13 @@ const adminNav = [
   { to: '/generate', icon: Wand2, label: 'Generate' },
   { to: '/teachers', icon: Users, label: 'Teachers' },
   { to: '/subjects', icon: BookOpen, label: 'Subjects' },
-  { to: '/classes', icon: GraduationCap, label: 'Classes' },
+  { to: '/classes', icon: GraduationCap, label: 'Course' },
   { to: '/classrooms', icon: Building2, label: 'Classrooms' },
   { to: '/timeslots', icon: Clock, label: 'Time Slots' },
   { to: '/personal-scheduler', icon: CalendarDays, label: 'My Schedule' },
   { to: '/exam-scheduler', icon: FileText, label: 'Exam Scheduler' },
   { to: '/substitute-manager', icon: UserCheck, label: 'Substitutes' },
+  { to: '/unavailability-manager', icon: AlertTriangle, label: 'Unavailability' },
 ];
 
 export default function Layout() {
