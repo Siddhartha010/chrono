@@ -15,6 +15,7 @@ import TimetableView from './pages/TimetableView';
 import TeacherDashboard from './pages/TeacherDashboard';
 import PersonalScheduler from './pages/PersonalScheduler';
 import ExamScheduler from './pages/ExamScheduler';
+import SubstituteManager from './pages/SubstituteManager';
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="teacher-dashboard/:id" element={<TeacherDashboard />} />
             <Route path="personal-scheduler" element={<PersonalScheduler />} />
             <Route path="exam-scheduler" element={<ExamScheduler />} />
+            <Route path="substitute-manager" element={<SubstituteManager />} />
           </Route>
         </Routes>
       </BrowserRouter>
