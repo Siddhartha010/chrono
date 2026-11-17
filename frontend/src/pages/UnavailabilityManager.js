@@ -15,9 +15,15 @@ export default function UnavailabilityManager() {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(false);
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [selectAll, setSelectAll] = useState(false);
 
   const load = () => {
-    api.get('/unavailability').then(r => setUnavailabilities(r.data));
+    api.get('/unavailability').then(r => {
+      setUnavailabilities(r.data);
+      setSelectedItems(new Set());
+      setSelectAll(false);
+    });
     api.get('/teachers').then(r => setTeachers(r.data));
     api.get('/timetable').then(r => setTimetables(r.data));
   };
@@ -59,15 +65,42 @@ export default function UnavailabilityManager() {
       return;
     }
     
+    // Calculate days of the week for the date range
+    const startDate = new Date(form.startDate);
+    const endDate = new Date(form.endDate);
+    const daysInRange = new Set();
+    
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    
+    // Iterate through each date in the range
+    for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+      const dayName = dayNames[date.getDay()];
+      daysInRange.add(dayName);
+    }
+    
+    const relevantDays = Array.from(daysInRange);
+    
     setLoading(true);
     try {
       const { data } = await api.post('/unavailability/check-conflicts', {
         timetableId: form.timetableId,
         startDate: form.startDate,
-        endDate: form.endDate
+        endDate: form.endDate,
+        relevantDays // Send the calculated days
       });
-      setConflicts(data.conflicts);
-      toast.success(`Found ${data.totalConflicts} conflicts`);
+      
+      // Filter conflicts to only show those on relevant days
+      const filteredConflicts = data.conflicts.filter(conflict => 
+        relevantDays.includes(conflict.entry.day)
+      );
+      
+      setConflicts(filteredConflicts);
+      
+      if (filteredConflicts.length > 0) {
+        toast.success(`Found ${filteredConflicts.length} conflicts on ${relevantDays.join(', ')}`);
+      } else {
+        toast.success(`No conflicts found for selected dates (${relevantDays.join(', ')})`);
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error');
     } finally {
@@ -267,6 +300,46 @@ export default function UnavailabilityManager() {
     }).catch(() => {
       toast.error('Failed to copy link');
     });
+  };
+
+  const handleSelectAll = (items) => {
+    if (selectAll) {
+      setSelectedItems(new Set());
+      setSelectAll(false);
+    } else {
+      setSelectedItems(new Set(items.map(item => item._id)));
+      setSelectAll(true);
+    }
+  };
+
+  const handleSelectItem = (itemId) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItems(newSelected);
+    setSelectAll(false);
+  };
+
+  const bulkDelete = async () => {
+    if (selectedItems.size === 0) {
+      toast.error('No items selected');
+      return;
+    }
+    
+    if (!window.confirm(`Delete ${selectedItems.size} selected unavailability records?`)) return;
+    
+    try {
+      await Promise.all(
+        Array.from(selectedItems).map(id => api.delete(`/unavailability/${id}`))
+      );
+      toast.success(`Deleted ${selectedItems.size} records`);
+      load();
+    } catch (err) {
+      toast.error('Failed to delete some records');
+    }
   };
 
   const del = async id => {
@@ -471,15 +544,41 @@ export default function UnavailabilityManager() {
       <div className="card" style={{ marginTop: 24 }}>
         <div className="card-header">
           <span className="card-title">Active Unavailabilities ({approved.length})</span>
+          {approved.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button 
+                className="btn btn-secondary btn-sm" 
+                onClick={() => handleSelectAll(approved)}
+              >
+                {selectAll ? 'Deselect All' : 'Select All'}
+              </button>
+              {selectedItems.size > 0 && (
+                <button className="btn btn-danger btn-sm" onClick={bulkDelete}>
+                  Delete Selected ({selectedItems.size})
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Teacher</th><th>Type</th><th>Period</th><th>Reason</th><th>Status</th><th>Actions</th></tr>
+              <tr>
+                <th style={{ width: 40 }}>Select</th>
+                <th>Teacher</th><th>Type</th><th>Period</th><th>Reason</th><th>Status</th><th>Actions</th>
+              </tr>
             </thead>
             <tbody>
               {approved.map(u => (
-                <tr key={u._id}>
+                <tr key={u._id} style={{ background: selectedItems.has(u._id) ? '#f0f9ff' : 'transparent' }}>
+                  <td>
+                    <input 
+                      type="checkbox" 
+                      checked={selectedItems.has(u._id)}
+                      onChange={() => handleSelectItem(u._id)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </td>
                   <td><strong>{u.teacher?.name}</strong></td>
                   <td>
                     <span style={{ color: typeColors[u.type] }}>
@@ -507,7 +606,7 @@ export default function UnavailabilityManager() {
                 </tr>
               ))}
               {approved.length === 0 && (
-                <tr><td colSpan={6} className="empty-state">No active unavailabilities</td></tr>
+                <tr><td colSpan={7} className="empty-state">No active unavailabilities</td></tr>
               )}
             </tbody>
           </table>
@@ -602,14 +701,54 @@ export default function UnavailabilityManager() {
               <div className="form-group">
                 <label className="form-label">Start Date</label>
                 <input className="form-input" type="date" value={form.startDate} 
-                  onChange={e => setForm({ ...form, startDate: e.target.value })} />
+                  onChange={e => {
+                    setForm({ ...form, startDate: e.target.value });
+                    // Clear conflicts when date changes
+                    setConflicts([]);
+                    setTimetableView(null);
+                  }} />
               </div>
               <div className="form-group">
                 <label className="form-label">End Date</label>
                 <input className="form-input" type="date" value={form.endDate} 
-                  onChange={e => setForm({ ...form, endDate: e.target.value })} />
+                  onChange={e => {
+                    setForm({ ...form, endDate: e.target.value });
+                    // Clear conflicts when date changes
+                    setConflicts([]);
+                    setTimetableView(null);
+                  }} />
               </div>
             </div>
+            
+            {/* Show calculated days */}
+            {form.startDate && form.endDate && (
+              <div style={{ 
+                background: '#f0f9ff', 
+                border: '1px solid #0ea5e9', 
+                borderRadius: 6, 
+                padding: 12, 
+                marginBottom: 16,
+                fontSize: '0.8rem'
+              }}>
+                <div style={{ fontWeight: 600, color: '#0369a1', marginBottom: 4 }}>Days to Check:</div>
+                <div style={{ color: '#0c4a6e' }}>
+                  {(() => {
+                    const startDate = new Date(form.startDate);
+                    const endDate = new Date(form.endDate);
+                    const daysInRange = new Set();
+                    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                    
+                    for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+                      const dayName = dayNames[date.getDay()];
+                      daysInRange.add(dayName);
+                    }
+                    
+                    return Array.from(daysInRange).join(', ');
+                  })()} 
+                  ({Math.ceil((new Date(form.endDate) - new Date(form.startDate)) / (1000 * 60 * 60 * 24)) + 1} days)
+                </div>
+              </div>
+            )}
             
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
               <button className="btn btn-secondary" onClick={checkConflicts} disabled={loading}>

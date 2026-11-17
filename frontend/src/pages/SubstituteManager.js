@@ -15,9 +15,15 @@ export default function SubstituteManager() {
   const [form, setForm] = useState({});
   const [availableTeachers, setAvailableTeachers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [selectAll, setSelectAll] = useState(false);
 
   const load = () => {
-    api.get('/substitutes').then(r => setSubstitutes(r.data));
+    api.get('/substitutes').then(r => {
+      setSubstitutes(r.data);
+      setSelectedItems(new Set());
+      setSelectAll(false);
+    });
     api.get('/timetable').then(r => setTimetables(r.data));
   };
   
@@ -292,6 +298,46 @@ export default function SubstituteManager() {
     load();
   };
 
+  const handleSelectAll = (items) => {
+    if (selectAll) {
+      setSelectedItems(new Set());
+      setSelectAll(false);
+    } else {
+      setSelectedItems(new Set(items.map(item => item._id)));
+      setSelectAll(true);
+    }
+  };
+
+  const handleSelectItem = (itemId) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItems(newSelected);
+    setSelectAll(false);
+  };
+
+  const bulkDelete = async () => {
+    if (selectedItems.size === 0) {
+      toast.error('No items selected');
+      return;
+    }
+    
+    if (!window.confirm(`Delete ${selectedItems.size} selected items?`)) return;
+    
+    try {
+      await Promise.all(
+        Array.from(selectedItems).map(id => api.delete(`/substitutes/${id}`))
+      );
+      toast.success(`Deleted ${selectedItems.size} items`);
+      load();
+    } catch (err) {
+      toast.error('Failed to delete some items');
+    }
+  };
+
   const del = async id => {
     if (!window.confirm('Delete this record?')) return;
     await api.delete(`/substitutes/${id}`);
@@ -472,15 +518,41 @@ export default function SubstituteManager() {
       <div className="card" style={{ marginTop: 24 }}>
         <div className="card-header">
           <span className="card-title">Active Substitutes & Swaps ({approvedSubs.length})</span>
+          {approvedSubs.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button 
+                className="btn btn-secondary btn-sm" 
+                onClick={() => handleSelectAll(approvedSubs)}
+              >
+                {selectAll ? 'Deselect All' : 'Select All'}
+              </button>
+              {selectedItems.size > 0 && (
+                <button className="btn btn-danger btn-sm" onClick={bulkDelete}>
+                  Delete Selected ({selectedItems.size})
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Type</th><th>Original</th><th>Assignment</th><th>Reason</th><th>Date</th><th>Actions</th></tr>
+              <tr>
+                <th style={{ width: 40 }}>Select</th>
+                <th>Type</th><th>Original</th><th>Assignment</th><th>Reason</th><th>Date</th><th>Actions</th>
+              </tr>
             </thead>
             <tbody>
               {approvedSubs.map(s => (
-                <tr key={s._id}>
+                <tr key={s._id} style={{ background: selectedItems.has(s._id) ? '#f0f9ff' : 'transparent' }}>
+                  <td>
+                    <input 
+                      type="checkbox" 
+                      checked={selectedItems.has(s._id)}
+                      onChange={() => handleSelectItem(s._id)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </td>
                   <td>
                     <span className={`badge ${s.type === 'substitute' ? 'badge-blue' : 'badge-purple'}`}>
                       {s.type === 'substitute' ? 'Substitute' : 'Swap'}
@@ -514,7 +586,7 @@ export default function SubstituteManager() {
                 </tr>
               ))}
               {approvedSubs.length === 0 && (
-                <tr><td colSpan={6} className="empty-state">No active substitutes or swaps</td></tr>
+                <tr><td colSpan={7} className="empty-state">No active substitutes or swaps</td></tr>
               )}
             </tbody>
           </table>
