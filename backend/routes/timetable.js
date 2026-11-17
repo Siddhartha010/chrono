@@ -103,6 +103,43 @@ router.put('/:id/name', auth, async (req, res) => {
   }
 });
 
+// Update timetable entries
+router.put('/:id/entries', auth, async (req, res) => {
+  try {
+    const { changes } = req.body;
+    if (!changes || !Array.isArray(changes)) {
+      return res.status(400).json({ message: 'Changes array is required' });
+    }
+    
+    const timetable = await Timetable.findOne({ _id: req.params.id, createdBy: req.user.id });
+    if (!timetable) return res.status(404).json({ message: 'Timetable not found' });
+    
+    // Apply changes to entries
+    const updatedEntries = timetable.entries.map(entry => {
+      const change = changes.find(c => c.entryId === entry._id.toString());
+      if (change) {
+        return {
+          ...entry,
+          day: change.newDay,
+          period: change.newPeriod
+        };
+      }
+      return entry;
+    });
+    
+    // Update the timetable
+    timetable.entries = updatedEntries;
+    await timetable.save();
+    
+    const populated = await Timetable.findById(timetable._id)
+      .populate('entries.class entries.subject entries.teacher entries.classroom');
+    
+    res.json(populated);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // Delete timetable
 router.delete('/:id', auth, async (req, res) => {
   await Timetable.findOneAndDelete({ _id: req.params.id, createdBy: req.user.id });

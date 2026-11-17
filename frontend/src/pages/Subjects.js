@@ -3,19 +3,30 @@ import { Plus, Pencil, Trash2, X } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 
-const empty = { name: '', code: '', hoursPerWeek: 3, isLab: false };
+const empty = { name: '', code: '', course: '', hoursPerWeek: 3, isLab: false };
 
 export default function Subjects() {
   const [subjects, setSubjects] = useState([]);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState(empty);
   const [editing, setEditing] = useState(null);
+  const [selectedCourse, setSelectedCourse] = useState('');
 
   const load = () => api.get('/subjects').then(r => setSubjects(r.data));
   useEffect(() => { load(); }, []);
 
   const openAdd = () => { setForm(empty); setEditing(null); setModal(true); };
-  const openEdit = s => { setForm({ name: s.name, code: s.code || '', hoursPerWeek: s.hoursPerWeek, isLab: s.isLab }); setEditing(s._id); setModal(true); };
+  const openEdit = s => { 
+    setForm({ 
+      name: s.name, 
+      code: s.code || '', 
+      course: s.course || '',
+      hoursPerWeek: s.hoursPerWeek, 
+      isLab: s.isLab 
+    }); 
+    setEditing(s._id); 
+    setModal(true); 
+  };
 
   const save = async e => {
     e.preventDefault();
@@ -31,37 +42,72 @@ export default function Subjects() {
     await api.delete(`/subjects/${id}`); toast.success('Deleted'); load();
   };
 
+  // Filter and group subjects by course
+  const filtered = subjects.filter(s => !selectedCourse || s.course === selectedCourse);
+  
+  const groupedSubjects = filtered.reduce((groups, subject) => {
+    const course = subject.course || 'Uncategorized';
+    if (!groups[course]) groups[course] = [];
+    groups[course].push(subject);
+    return groups;
+  }, {});
+
+  const courses = [...new Set(subjects.map(s => s.course).filter(Boolean))];
+
   return (
     <div className="page">
       <div className="topbar">
         <h2>Subjects</h2>
-        <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Add Subject</button>
-      </div>
-
-      <div style={{ marginTop: 24 }} className="card">
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Name</th><th>Code</th><th>Hours/Week</th><th>Type</th><th>Actions</th></tr></thead>
-            <tbody>
-              {subjects.map(s => (
-                <tr key={s._id}>
-                  <td><strong>{s.name}</strong></td>
-                  <td>{s.code || '-'}</td>
-                  <td>{s.hoursPerWeek}</td>
-                  <td><span className={`badge ${s.isLab ? 'badge-blue' : 'badge-purple'}`}>{s.isLab ? 'Lab' : 'Theory'}</span></td>
-                  <td>
-                    <div className="actions">
-                      <button className="btn btn-secondary btn-sm" onClick={() => openEdit(s)}><Pencil size={13} /></button>
-                      <button className="btn btn-danger btn-sm" onClick={() => del(s._id)}><Trash2 size={13} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {subjects.length === 0 && <tr><td colSpan={5} className="empty-state">No subjects found</td></tr>}
-            </tbody>
-          </table>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <select className="form-select" style={{ minWidth: 150 }} value={selectedCourse} onChange={e => setSelectedCourse(e.target.value)}>
+            <option value="">All Courses</option>
+            {courses.map(course => <option key={course} value={course}>{course}</option>)}
+          </select>
+          <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Add Subject</button>
         </div>
       </div>
+
+      {Object.entries(groupedSubjects).map(([course, courseSubjects]) => (
+        <div key={course} style={{ marginTop: 24 }} className="card">
+          <div className="card-header">
+            <span className="card-title">{course} ({courseSubjects.length} subjects)</span>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Code</th><th>Hours/Week</th><th>Type</th><th>Actions</th></tr></thead>
+              <tbody>
+                {courseSubjects.map(s => (
+                  <tr key={s._id}>
+                    <td><strong>{s.name}</strong></td>
+                    <td>{s.code || '-'}</td>
+                    <td>{s.hoursPerWeek}</td>
+                    <td><span className={`badge ${s.isLab ? 'badge-blue' : 'badge-purple'}`}>{s.isLab ? 'Lab' : 'Theory'}</span></td>
+                    <td>
+                      <div className="actions">
+                        <button className="btn btn-secondary btn-sm" onClick={() => openEdit(s)}><Pencil size={13} /></button>
+                        <button className="btn btn-danger btn-sm" onClick={() => del(s._id)}><Trash2 size={13} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+      
+      {Object.keys(groupedSubjects).length === 0 && (
+        <div style={{ marginTop: 24 }} className="card">
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Code</th><th>Hours/Week</th><th>Type</th><th>Actions</th></tr></thead>
+              <tbody>
+                <tr><td colSpan={5} className="empty-state">No subjects found</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {modal && (
         <div className="modal-overlay" onClick={() => setModal(false)}>
@@ -80,6 +126,18 @@ export default function Subjects() {
                   <label className="form-label">Code</label>
                   <input className="form-input" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />
                 </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Course *</label>
+                <select className="form-select" value={form.course} onChange={e => setForm({ ...form, course: e.target.value })} required>
+                  <option value="">Select Course</option>
+                  <option value="BTech">BTech</option>
+                  <option value="BCS">BCS</option>
+                  <option value="MCA">MCA</option>
+                  <option value="MBA">MBA</option>
+                  <option value="MSc">MSc</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
               <div className="form-row">
                 <div className="form-group">

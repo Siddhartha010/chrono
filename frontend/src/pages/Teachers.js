@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const ALL_PERIODS = [1, 2, 3, 4, 5, 6, 7, 8];
 
-const empty = { name: '', email: '', subjects: [], availability: [], maxHoursPerDay: 6, maxHoursPerWeek: 30 };
+const empty = { name: '', email: '', course: '', subjects: [], availability: [], maxHoursPerDay: 6, maxHoursPerWeek: 30 };
 
 export default function Teachers() {
   const [teachers, setTeachers] = useState([]);
@@ -15,6 +15,7 @@ export default function Teachers() {
   const [form, setForm] = useState(empty);
   const [editing, setEditing] = useState(null);
   const [search, setSearch] = useState('');
+  const [selectedCourse, setSelectedCourse] = useState('');
 
   const load = () => {
     api.get('/teachers').then(r => setTeachers(r.data));
@@ -26,7 +27,7 @@ export default function Teachers() {
   const openAdd = () => { setForm(empty); setEditing(null); setModal(true); };
   const openEdit = t => {
     setForm({
-      name: t.name, email: t.email || '',
+      name: t.name, email: t.email || '', course: t.course || '',
       subjects: t.subjects.map(s => s._id),
       availability: t.availability || [],
       maxHoursPerDay: t.maxHoursPerDay,
@@ -76,13 +77,31 @@ export default function Teachers() {
     return a ? a.periods.includes(period) : false;
   };
 
-  const filtered = teachers.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = teachers.filter(t => {
+    const matchesSearch = t.name.toLowerCase().includes(search.toLowerCase());
+    const matchesCourse = !selectedCourse || t.course === selectedCourse;
+    return matchesSearch && matchesCourse;
+  });
+
+  // Group teachers by course
+  const groupedTeachers = filtered.reduce((groups, teacher) => {
+    const course = teacher.course || 'Uncategorized';
+    if (!groups[course]) groups[course] = [];
+    groups[course].push(teacher);
+    return groups;
+  }, {});
+
+  const courses = [...new Set(teachers.map(t => t.course).filter(Boolean))];
 
   return (
     <div className="page">
       <div className="topbar">
         <h2>Teachers</h2>
         <div style={{ display: 'flex', gap: 10 }}>
+          <select className="form-select" style={{ minWidth: 150 }} value={selectedCourse} onChange={e => setSelectedCourse(e.target.value)}>
+            <option value="">All Courses</option>
+            {courses.map(course => <option key={course} value={course}>{course}</option>)}
+          </select>
           <div className="search-bar">
             <input placeholder="Search teachers..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
@@ -90,38 +109,58 @@ export default function Teachers() {
         </div>
       </div>
 
-      <div style={{ marginTop: 24 }} className="card">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th><th>Email</th><th>Subjects</th>
-                <th>Max/Day</th><th>Max/Week</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(t => (
-                <tr key={t._id}>
-                  <td><strong>{t.name}</strong></td>
-                  <td>{t.email || '-'}</td>
-                  <td>{t.subjects.map(s => <span key={s._id} className="chip">{s.name}</span>)}</td>
-                  <td>{t.maxHoursPerDay}h</td>
-                  <td>{t.maxHoursPerWeek}h</td>
-                  <td>
-                    <div className="actions">
-                      <button className="btn btn-secondary btn-sm" onClick={() => openEdit(t)}><Pencil size={13} /></button>
-                      <button className="btn btn-danger btn-sm" onClick={() => del(t._id)}><Trash2 size={13} /></button>
-                    </div>
-                  </td>
+      {Object.entries(groupedTeachers).map(([course, courseTeachers]) => (
+        <div key={course} style={{ marginTop: 24 }} className="card">
+          <div className="card-header">
+            <span className="card-title">{course} ({courseTeachers.length} teachers)</span>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th><th>Email</th><th>Subjects</th>
+                  <th>Max/Day</th><th>Max/Week</th><th>Actions</th>
                 </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={6} className="empty-state">No teachers found</td></tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {courseTeachers.map(t => (
+                  <tr key={t._id}>
+                    <td><strong>{t.name}</strong></td>
+                    <td>{t.email || '-'}</td>
+                    <td>{t.subjects.map(s => <span key={s._id} className="chip">{s.name}</span>)}</td>
+                    <td>{t.maxHoursPerDay}h</td>
+                    <td>{t.maxHoursPerWeek}h</td>
+                    <td>
+                      <div className="actions">
+                        <button className="btn btn-secondary btn-sm" onClick={() => openEdit(t)}><Pencil size={13} /></button>
+                        <button className="btn btn-danger btn-sm" onClick={() => del(t._id)}><Trash2 size={13} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ))}
+      
+      {Object.keys(groupedTeachers).length === 0 && (
+        <div style={{ marginTop: 24 }} className="card">
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th><th>Email</th><th>Subjects</th>
+                  <th>Max/Day</th><th>Max/Week</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colSpan={6} className="empty-state">No teachers found</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {modal && (
         <div className="modal-overlay" onClick={() => setModal(false)}>
@@ -140,6 +179,18 @@ export default function Teachers() {
                   <label className="form-label">Email</label>
                   <input className="form-input" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
                 </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Course *</label>
+                <select className="form-select" value={form.course} onChange={e => setForm({ ...form, course: e.target.value })} required>
+                  <option value="">Select Course</option>
+                  <option value="BTech">BTech</option>
+                  <option value="BCS">BCS</option>
+                  <option value="MCA">MCA</option>
+                  <option value="MBA">MBA</option>
+                  <option value="MSc">MSc</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Subjects</label>
