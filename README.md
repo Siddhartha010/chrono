@@ -2,6 +2,64 @@
 
 A full-stack web application that uses a **Genetic Algorithm** to generate optimized, conflict-free school/college timetables.
 
+## Problem Statement
+Traditional timetable scheduling in educational institutions is a complex, time-consuming, and error-prone manual process. It involves balancing numerous constraints, such as teacher availability, classroom capacity, subject hours, and preventing overlaps (clashes). As the number of classes and teachers grows, the possible combinations become astronomical, making it nearly impossible for a human to find an optimal, conflict-free solution.
+
+## Solution
+**ChronoGen** solves this by leveraging an **AI-driven Genetic Algorithm (GA)**. By mimicking the process of natural selection, the system explores thousands of potential schedules, iteratively improving them through selection, crossover, and mutation. This automated approach ensures:
+- **Zero Conflicts**: No double-booking of teachers, rooms, or classes.
+- **Efficiency**: Generates complex schedules in seconds rather than days.
+- **Constraint Satisfaction**: Respects teacher-specific preferences and workload limits.
+- **Flexibility**: Easily adapts to last-minute changes in staff or infrastructure.
+
+## Future Aspect
+Substitution managment
+
+## PPT 
+[codeXploration_Round1PPTX.pdf](https://github.com/user-attachments/files/26330847/codeXploration_Round1PPTX.pdf)
+
+## Screenshots & Feature Working
+### **1. Dashboard Overview**
+![Dashboard Overview](https://github.com/WTC-Group-3/wtc-round-2-group-3-codexploration/blob/main/Screenshot%202026-03-29%20201654.png?raw=true)
+*The **Dashboard** serves as the central hub for the application. It provides quick access to all management modules (Teachers, Subjects, Classes, etc.) and allows users to trigger the AI timetable generation process with a single click.*
+
+### **2. Time slots Configuration**
+![Timetable View](https://github.com/WTC-Group-3/wtc-round-2-group-3-codexploration/blob/main/Screenshot%202026-03-29%20201921.png?raw=true)
+*The **Time Slots Configuration** module is where the base schedule structure is defined. Administrators can specify the working days of the week and the number of periods per day, including their start/end times and break periods. This configuration serves as the foundational grid for the Genetic Algorithm.*
+
+### **3. Teacher Workload Analysis**
+![Teacher Workload Analysis](https://github.com/WTC-Group-3/wtc-round-2-group-3-codexploration/blob/main/Screenshot%202026-03-29%20201905.png?raw=true)
+*The **Teacher Workload Analysis** (Teacher Dashboard) provides a comprehensive view of faculty assignments. It tracks total lectures, active teaching days, and daily load distribution for each teacher. This tool helps administrators identify potential burnout and ensures an even distribution of teaching responsibilities across the staff.*
+
+### **4. Classrooms Management**
+![Teacher Workload](https://github.com/WTC-Group-3/wtc-round-2-group-3-codexploration/blob/main/Screenshot%202026-03-29%20201905.png?raw=true)
+*The **Classrooms Management** module allows administrators to define the physical spaces available for classes. It includes details such as **room name**, **capacity**, and whether it is a **Lab** or a regular classroom. The Genetic Algorithm ensures that classes are only assigned to rooms that can accommodate their student strength.*
+
+### **5. Classes Management**
+![Teachers Page](https://github.com/WTC-Group-3/wtc-round-2-group-3-codexploration/blob/main/Screenshot%202026-03-29%20201850.png?raw=true)
+The Classes Management tool is used to create student groups (e.g., B.Tech Section F) and map them to their respective subjects and teachers. This mapping forms the core requirement that the AI engine must satisfy during generation.
+
+### **6. Subjects Management**
+![Subjects Page](https://github.com/WTC-Group-3/wtc-round-2-group-3-codexploration/blob/main/Screenshot%202026-03-29%20201834.png?raw=true)
+*In the **Subjects Management** section, users define the curriculum details, including subject names, codes, and the required **hours per week** for each subject. This data informs the Genetic Algorithm on how many slots need to be filled.*
+
+### **7. Timetable View**
+![Classes Page](https://github.com/WTC-Group-3/wtc-round-2-group-3-codexploration/blob/main/Screenshot%202026-03-29%20201759.png?raw=true)
+*The **Timetable View** displays the generated schedule in an interactive grid format. Users can filter the results by Class, Teacher, or Subject to see specific schedules. It also displays the **Efficiency Score** (Fitness) and provides options to export the data to PDF or Excel.*
+
+## Reliability & Scalability
+- **Reliability**: The system uses a robust fitness-based evaluation to guarantee the validity of the generated timetable. Built on the **MERN stack**, it ensures consistent data persistence and atomic operations via MongoDB, preventing data loss during complex generation cycles.
+- **Scalability**: The architecture is designed for growth. The **MongoDB** backend scales horizontally to handle increasing data volumes, while the **Express** API can be load-balanced to support multiple concurrent generation requests. The modular **Genetic Algorithm** engine is decoupled from the UI, allowing it to be scaled independently or even offloaded to worker threads for massive datasets.
+
+## Key Features
+- **Smart Generation**: Automated scheduling using Genetic Algorithm logic.
+- **Conflict Management**: Ensures no teacher, class, or room is double-booked.
+- **Workload Balancing**: Respects teacher availability and maximum working hours.
+- **Interactive UI**: Responsive dashboard for data entry and timetable visualization.
+- **Filtering**: View timetables by Class, Teacher, or Subject.
+- **Exporting**: One-click download as PDF or Excel files.
+- **Teacher Insights**: Dedicated dashboard for teacher workload analysis.
+
 ## Tech Stack
 - **Framework**: Express.js (Backend), React.js (Frontend)
 - **Database**: MongoDB (Mongoose ODM)
@@ -152,6 +210,7 @@ The system uses **MongoDB** with **Mongoose** models. Below is the relational st
 To efficiently develop and maintain **ChronoGen**, tasks are divided into four specific roles:
 
 ### **1. Frontend Developer**
+### **1. Frontend Developer — Siddharth Agarwal**
 - **Focus**: User interface, client-side state, and responsive design.
 - **Key Files**: [App.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/frontend/src/App.js), [Dashboard.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/frontend/src/pages/Dashboard.js), [TimetableView.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/frontend/src/pages/TimetableView.js).
 - **Responsibilities**:
@@ -161,6 +220,7 @@ To efficiently develop and maintain **ChronoGen**, tasks are divided into four s
     - Ensure a smooth and modern user experience.
 
 ### **2. Backend Developer**
+### **2. Backend Developer — Vijay Singh Bisht**
 - **Focus**: Server architecture, API routing, and system security.
 - **Key Files**: [server.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/backend/server.js), [auth.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/backend/routes/auth.js), [export.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/backend/routes/export.js).
 - **Responsibilities**:
@@ -170,6 +230,7 @@ To efficiently develop and maintain **ChronoGen**, tasks are divided into four s
     - Manage project environment and dependencies.
 
 ### **3. Database Developer**
+### **3. Database Developer — Divyansh Rautela**
 - **Focus**: Data modeling, persistence, and relational integrity.
 - **Key Files**: [models/](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/backend/models/), [User.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/backend/models/User.js), [Timetable.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/backend/models/Timetable.js).
 - **Responsibilities**:
@@ -179,6 +240,7 @@ To efficiently develop and maintain **ChronoGen**, tasks are divided into four s
     - Maintain the Database Schema documentation.
 
 ### **4. Algorithm (Algo) Specialist**
+### **4. Algorithm (Algo) Specialist — Garhvit Singh Negi**
 - **Focus**: Core logic of the Genetic Algorithm and scheduling optimization.
 - **Key Files**: [geneticAlgorithm.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/backend/utils/geneticAlgorithm.js), [timetable.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/backend/routes/timetable.js).
 - **Responsibilities**:
@@ -186,6 +248,8 @@ To efficiently develop and maintain **ChronoGen**, tasks are divided into four s
     - Implement conflict resolution logic for teachers and classrooms.
     - Handle complex scheduling constraints and workload balancing.
     - Tune GA parameters to ensure optimal and valid results.
+
+*Each team member will be contributing to the project and in the GitHub repository based on their respective roles.*
 
 ## API Endpoints
  __________________________________________________________________________________________
