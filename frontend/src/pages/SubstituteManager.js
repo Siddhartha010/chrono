@@ -6,6 +6,8 @@ import toast from 'react-hot-toast';
 export default function SubstituteManager() {
   const [substitutes, setSubstitutes] = useState([]);
   const [timetables, setTimetables] = useState([]);
+  const [selectedTimetable, setSelectedTimetable] = useState('');
+  const [timetableView, setTimetableView] = useState(null);
   const [modal, setModal] = useState(null); // 'substitute' or 'swap'
   const [form, setForm] = useState({});
   const [availableTeachers, setAvailableTeachers] = useState([]);
@@ -14,6 +16,24 @@ export default function SubstituteManager() {
   const load = () => {
     api.get('/substitutes').then(r => setSubstitutes(r.data));
     api.get('/timetable').then(r => setTimetables(r.data));
+  };
+  
+  const loadTimetableView = async (timetableId) => {
+    if (!timetableId) {
+      setTimetableView(null);
+      return;
+    }
+    try {
+      const { data } = await api.get(`/substitutes/timetable/${timetableId}`);
+      setTimetableView(data);
+    } catch (err) {
+      toast.error('Failed to load timetable view');
+    }
+  };
+
+  const handleTimetableSelect = (timetableId) => {
+    setSelectedTimetable(timetableId);
+    loadTimetableView(timetableId);
   };
   useEffect(() => { load(); }, []);
 
@@ -114,10 +134,113 @@ export default function SubstituteManager() {
       <div className="topbar">
         <h2>Substitute Management</h2>
         <div style={{ display: 'flex', gap: 8 }}>
+          <select className="form-select" style={{ minWidth: 200 }} value={selectedTimetable} 
+            onChange={e => handleTimetableSelect(e.target.value)}>
+            <option value="">Select Timetable to View</option>
+            {timetables.map(t => <option key={t._id} value={t._id}>{t.name} ({t.fitnessScore}%)</option>)}
+          </select>
           <button className="btn btn-primary" onClick={openSubstitute}><UserCheck size={16} /> Assign Substitute</button>
           <button className="btn btn-secondary" onClick={openSwap}><ArrowRightLeft size={16} /> Request Swap</button>
         </div>
       </div>
+
+      {/* Timetable View with Substitutions */}
+      {timetableView && (
+        <div className="card" style={{ marginTop: 24 }}>
+          <div className="card-header">
+            <span className="card-title">Updated Timetable - {timetableView.name}</span>
+            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Shows current schedule with substitutions applied</span>
+          </div>
+          <div className="timetable-grid" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+              <thead>
+                <tr style={{ background: '#f8fafc' }}>
+                  <th style={{ padding: '8px', border: '1px solid #e2e8f0', minWidth: 80 }}>Day</th>
+                  {timetableView.periods?.map(p => (
+                    <th key={p.periodNumber} style={{ padding: '8px', border: '1px solid #e2e8f0', minWidth: 120 }}>
+                      P{p.periodNumber}<br />
+                      <span style={{ fontSize: '0.7rem', color: '#64748b' }}>{p.startTime}-{p.endTime}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {timetableView.days?.map(day => (
+                  <tr key={day}>
+                    <td style={{ padding: '8px', border: '1px solid #e2e8f0', fontWeight: 600, background: '#f8fafc' }}>
+                      {day}
+                    </td>
+                    {timetableView.periods?.map(period => {
+                      const entry = timetableView.entries.find(e => e.day === day && e.period === period.periodNumber);
+                      const substitute = timetableView.substitutes.find(s => 
+                        s.originalEntry.day === day && s.originalEntry.period === period.periodNumber && s.status === 'approved'
+                      );
+                      
+                      return (
+                        <td key={period.periodNumber} style={{ 
+                          padding: '6px', 
+                          border: '1px solid #e2e8f0',
+                          background: substitute ? (substitute.isLibrary ? '#fef3c7' : '#dbeafe') : 'white'
+                        }}>
+                          {entry ? (
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: '0.75rem' }}>{entry.class?.name}</div>
+                              <div style={{ color: '#4f46e5', fontSize: '0.7rem' }}>{entry.subject?.name}</div>
+                              <div style={{ color: substitute ? '#dc2626' : '#059669', fontSize: '0.7rem' }}>
+                                {substitute ? (
+                                  substitute.isLibrary ? '📚 Library' : substitute.substituteTeacher?.name
+                                ) : (
+                                  entry.teacher?.name
+                                )}
+                              </div>
+                              <div style={{ color: '#64748b', fontSize: '0.65rem' }}>{entry.classroom?.name}</div>
+                              {substitute && (
+                                <div style={{ 
+                                  background: substitute.isLibrary ? '#f59e0b' : '#2563eb', 
+                                  color: 'white', 
+                                  fontSize: '0.6rem', 
+                                  padding: '1px 4px', 
+                                  borderRadius: 3, 
+                                  marginTop: 2,
+                                  display: 'inline-block'
+                                }}>
+                                  {substitute.type === 'substitute' ? 'SUB' : 'SWAP'}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>Free</div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ padding: '12px', background: '#f8fafc', fontSize: '0.75rem', color: '#64748b' }}>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: 12, height: 12, background: '#dbeafe', border: '1px solid #93c5fd' }}></div>
+                <span>Substitute Teacher</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: 12, height: 12, background: '#fef3c7', border: '1px solid #fcd34d' }}></div>
+                <span>Library Period</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ background: '#2563eb', color: 'white', padding: '1px 4px', borderRadius: 2, fontSize: '0.6rem' }}>SUB</span>
+                <span>Substitute Assignment</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ background: '#7c3aed', color: 'white', padding: '1px 4px', borderRadius: 2, fontSize: '0.6rem' }}>SWAP</span>
+                <span>Teacher Swap</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pending Swap Requests */}
       {pendingSwaps.length > 0 && (

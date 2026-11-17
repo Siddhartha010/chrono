@@ -2,6 +2,7 @@ const express = require('express');
 const Substitute = require('../models/Substitute');
 const Timetable = require('../models/Timetable');
 const Teacher = require('../models/Teacher');
+const Timeslot = require('../models/Timeslot');
 const auth = require('../middleware/auth');
 const router = express.Router();
 
@@ -126,6 +127,31 @@ router.put('/:id/status', auth, async (req, res) => {
 router.delete('/:id', auth, async (req, res) => {
   await Substitute.findOneAndDelete({ _id: req.params.id, createdBy: req.user.id });
   res.json({ message: 'Deleted' });
+});
+
+// Get timetable with substitutions applied
+router.get('/timetable/:id', auth, async (req, res) => {
+  try {
+    const timetable = await Timetable.findOne({ _id: req.params.id, createdBy: req.user.id })
+      .populate('entries.class entries.subject entries.teacher entries.classroom');
+    if (!timetable) return res.status(404).json({ message: 'Timetable not found' });
+
+    const substitutes = await Substitute.find({ 
+      timetableId: req.params.id, 
+      status: 'approved' 
+    }).populate('substituteTeacher originalEntry.teacher swapWith.teacher');
+
+    const timeslot = await Timeslot.findOne({ createdBy: req.user.id });
+    
+    res.json({
+      ...timetable.toObject(),
+      substitutes,
+      days: timeslot?.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+      periods: timeslot?.periods || []
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
 module.exports = router;
