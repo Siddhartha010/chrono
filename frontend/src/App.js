@@ -18,6 +18,7 @@ import ExamScheduler from './pages/ExamScheduler';
 import UnavailabilityManager from './pages/UnavailabilityManager';
 import SubstituteManager from './pages/SubstituteManager';
 import SemesterPlanner from './pages/SemesterPlanner';
+import WeeklyTimetableView from './pages/WeeklyTimetableView';
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="substitute-manager" element={<SubstituteManager />} />
             <Route path="unavailability-manager" element={<UnavailabilityManager />} />
             <Route path="semester-planner" element={<SemesterPlanner />} />
+            <Route path="weekly-timetable/:semesterId/:weekNumber" element={<WeeklyTimetableView />} />
           </Route>
         </Routes>
       </BrowserRouter>

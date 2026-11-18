@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Calendar, Plus, AlertTriangle, CheckCircle, Clock, BarChart3, Settings, Trash2, Edit2, Wand2, Eye } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import HolidayCalendar from '../components/HolidayCalendar';
 
 export default function SemesterPlanner() {
+  const navigate = useNavigate();
   const [semesters, setSemesters] = useState([]);
   const [selectedSemester, setSelectedSemester] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -48,7 +50,6 @@ export default function SemesterPlanner() {
   const [bulkHolidayMode, setBulkHolidayMode] = useState(false);
   const [weeklyTimetables, setWeeklyTimetables] = useState([]);
   const [showWeeklyView, setShowWeeklyView] = useState(false);
-  const [selectedWeek, setSelectedWeek] = useState(null);
   const [selectedSemesters, setSelectedSemesters] = useState(new Set());
   const [selectAll, setSelectAll] = useState(false);
 
@@ -320,19 +321,6 @@ Redistribution suggestions available.`;
       toast.error('Failed to delete some semesters');
     }
   };
-    if (!window.confirm('Delete this semester? This will also delete all related progress data.')) return;
-    
-    try {
-      await api.delete(`/semesters/${id}`);
-      toast.success('Semester deleted');
-      loadSemesters();
-      if (selectedSemester?._id === id) {
-        setSelectedSemester(null);
-      }
-    } catch (err) {
-      toast.error('Failed to delete semester');
-    }
-  };
 
   const calculateProgress = (semester) => {
     if (!semester.academicCalendar) return { total: 0, actual: 0, percentage: 0 };
@@ -560,17 +548,28 @@ Redistribution suggestions available.`;
                       const compensationClasses = week.entries?.filter(e => e.isCompensation).length || 0;
                       const saturdayClasses = week.entries?.filter(e => e.isSaturdayClass).length || 0;
                       const totalClasses = week.entries?.length || 0;
+                      const fitnessScore = week.fitnessScore || 0;
                       
                       return (
                         <div key={week.weekNumber} className="card" style={{ margin: 0 }}>
                           <div className="card-header">
                             <span className="card-title">Week {week.weekNumber}</span>
-                            <span className={`badge ${
-                              week.status === 'completed' ? 'badge-green' :
-                              week.status === 'in_progress' ? 'badge-yellow' : 'badge-secondary'
-                            }`}>
-                              {week.status}
-                            </span>
+                            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                              {fitnessScore > 0 && (
+                                <span className={`badge ${
+                                  fitnessScore >= 80 ? 'badge-green' :
+                                  fitnessScore >= 50 ? 'badge-yellow' : 'badge-red'
+                                }`} style={{ fontSize: '0.7rem' }}>
+                                  {fitnessScore}%
+                                </span>
+                              )}
+                              <span className={`badge ${
+                                week.status === 'completed' ? 'badge-green' :
+                                week.status === 'in_progress' ? 'badge-yellow' : 'badge-secondary'
+                              }`}>
+                                {week.status}
+                              </span>
+                            </div>
                           </div>
                           
                           <div style={{ padding: 12, fontSize: '0.9rem' }}>
@@ -591,9 +590,9 @@ Redistribution suggestions available.`;
                             <button 
                               className="btn btn-primary btn-sm" 
                               style={{ width: '100%' }}
-                              onClick={() => setSelectedWeek(week)}
+                              onClick={() => navigate(`/weekly-timetable/${selectedSemester._id}/${week.weekNumber}`)}
                             >
-                              View Details
+                              View Timetable
                             </button>
                           </div>
                         </div>
