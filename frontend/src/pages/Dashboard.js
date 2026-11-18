@@ -8,15 +8,25 @@ export default function Dashboard() {
   const [timetables, setTimetables] = useState([]);
   const [substitutes, setSubstitutes] = useState([]);
   const [unavailabilities, setUnavailabilities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    Promise.all([
-      api.get('/teachers'), api.get('/subjects'),
-      api.get('/classes'), api.get('/classrooms'),
-      api.get('/timetable'), api.get('/substitutes'),
-      api.get('/unavailability')
-    ]).then(([t, s, c, r, tt, sub, una]) => {
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const [t, s, c, r, tt, sub, una] = await Promise.all([
+        api.get('/teachers'), 
+        api.get('/subjects'),
+        api.get('/classes'), 
+        api.get('/classrooms'),
+        api.get('/timetable'), 
+        api.get('/substitutes'),
+        api.get('/unavailability')
+      ]);
+      
       setCounts({ 
         teachers: t.data.length, 
         subjects: s.data.length, 
@@ -25,10 +35,26 @@ export default function Dashboard() {
         substitutes: sub.data.length,
         unavailabilities: una.data.length
       });
+      
       setTimetables(tt.data.slice(0, 5));
       setSubstitutes(sub.data.slice(0, 3));
       setUnavailabilities(una.data.slice(0, 3));
-    }).catch(() => {});
+      
+      console.log('Dashboard loaded:', {
+        timetables: tt.data.length,
+        substitutes: sub.data.length,
+        unavailabilities: una.data.length
+      });
+    } catch (err) {
+      console.error('Dashboard load error:', err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
   const stats = [
@@ -46,13 +72,28 @@ export default function Dashboard() {
     <div className="page">
       <div className="topbar">
         <h2>Dashboard</h2>
-        <button className="btn btn-primary" onClick={() => navigate('/generate')}>
-          <Wand2 size={16} /> Generate Timetable
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-secondary" onClick={loadData} disabled={loading}>
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+          <button className="btn btn-primary" onClick={() => navigate('/generate')}>
+            <Wand2 size={16} /> Generate Timetable
+          </button>
+        </div>
       </div>
 
       <div style={{ padding: '0' }}>
-        <div className="stats-grid" style={{ marginTop: 24 }}>
+        {error && (
+          <div className="card" style={{ marginTop: 24, background: '#fee2e2', border: '1px solid #fecaca' }}>
+            <p style={{ color: '#dc2626', margin: 0 }}>{error}</p>
+          </div>
+        )}
+        
+        {loading ? (
+          <div className="spinner" style={{ marginTop: 60 }} />
+        ) : (
+          <>
+            <div className="stats-grid" style={{ marginTop: 24 }}>
           {stats.map(({ label, value, icon: Icon, cls }) => (
             <div className="stat-card" key={label}>
               <div className={`stat-icon ${cls}`}><Icon size={20} /></div>
@@ -89,23 +130,26 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {timetables.map(tt => (
-                    <tr key={tt._id}>
-                      <td>{tt.name}</td>
-                      <td>
-                        <span className={`fitness-badge ${fitnessClass(tt.fitnessScore)}`}>
-                          {tt.fitnessScore}%
-                        </span>
-                      </td>
-                      <td>{tt.generation}</td>
-                      <td>{new Date(tt.createdAt).toLocaleDateString()}</td>
-                      <td>
-                        <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/timetable/${tt._id}`)}>
-                          View
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {timetables.map(tt => {
+                    console.log('Rendering timetable:', tt);
+                    return (
+                      <tr key={tt._id}>
+                        <td><strong>{tt.name}</strong></td>
+                        <td>
+                          <span className={`fitness-badge ${fitnessClass(tt.fitnessScore)}`}>
+                            {tt.fitnessScore}%
+                          </span>
+                        </td>
+                        <td>{tt.generation || 'N/A'}</td>
+                        <td>{tt.createdAt ? new Date(tt.createdAt).toLocaleDateString() : 'N/A'}</td>
+                        <td>
+                          <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/timetable/${tt._id}`)}>
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -211,6 +255,8 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+          </>
+        )}
       </div>
     </div>
   );
