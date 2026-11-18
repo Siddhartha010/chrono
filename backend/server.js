@@ -46,12 +46,15 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
-  console.log('API health check called');
+  const dbState = mongoose.connection.readyState;
+  const dbStatus = ['disconnected', 'connected', 'connecting', 'disconnecting'][dbState] || 'unknown';
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
     message: 'ChronoGen Backend is running',
-    version: '1.0.0'
+    version: '1.0.0',
+    database: dbStatus,
+    mongoUri: process.env.MONGO_URI ? 'set' : 'NOT SET'
   });
 });
 
@@ -91,6 +94,17 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.error('MongoDB connection error:', err));
+if (!process.env.MONGO_URI) {
+  console.error('FATAL: MONGO_URI environment variable is not set');
+} else {
+  mongoose.connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 30000,
+    socketTimeoutMS: 45000,
+    connectTimeoutMS: 30000,
+  })
+    .then(() => console.log('MongoDB connected'))
+    .catch(err => console.error('MongoDB connection error:', err.message));
+
+  mongoose.connection.on('disconnected', () => console.warn('MongoDB disconnected'));
+  mongoose.connection.on('reconnected', () => console.log('MongoDB reconnected'));
+}
