@@ -28,6 +28,22 @@ export default function Timeslots() {
 
   const save = async e => {
     e.preventDefault();
+    
+    // Validate all periods before saving
+    for (let i = 0; i < form.periods.length; i++) {
+      const period = form.periods[i];
+      if (!period.startTime || !period.endTime) {
+        toast.error(`Period ${period.periodNumber} is missing start or end time`);
+        return;
+      }
+      
+      const validation = validateTimeSlot(period.startTime, period.endTime, i);
+      if (!validation.isValid) {
+        toast.error(`Period ${period.periodNumber}: ${validation.message}`);
+        return;
+      }
+    }
+    
     setSaving(true);
     try {
       if (config) await api.put(`/timeslots/${config._id}`, form);
@@ -42,9 +58,71 @@ export default function Timeslots() {
     setForm({ ...form, days });
   };
 
+  const validateTimeSlot = (startTime, endTime, currentIndex) => {
+    if (!startTime || !endTime) return { isValid: true };
+    
+    // Convert time strings to minutes for easier calculation
+    const timeToMinutes = (timeStr) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+    
+    const startMinutes = timeToMinutes(startTime);
+    const endMinutes = timeToMinutes(endTime);
+    
+    // Check if end time is after start time
+    if (endMinutes <= startMinutes) {
+      return { isValid: false, message: 'End time must be after start time' };
+    }
+    
+    // Check if duration is more than 2 hours (120 minutes)
+    const durationMinutes = endMinutes - startMinutes;
+    if (durationMinutes > 120) {
+      return { 
+        isValid: false, 
+        message: 'Time slot duration cannot exceed 2 hours. Please create shorter periods for better scheduling.' 
+      };
+    }
+    
+    // Check for overlapping with existing periods (excluding current period being edited)
+    for (let i = 0; i < form.periods.length; i++) {
+      if (i === currentIndex) continue; // Skip current period
+      
+      const period = form.periods[i];
+      if (!period.startTime || !period.endTime) continue;
+      
+      const periodStart = timeToMinutes(period.startTime);
+      const periodEnd = timeToMinutes(period.endTime);
+      
+      // Check for overlap
+      if ((startMinutes < periodEnd && endMinutes > periodStart)) {
+        return { 
+          isValid: false, 
+          message: `Time slot overlaps with Period ${period.periodNumber} (${period.startTime} - ${period.endTime})` 
+        };
+      }
+    }
+    
+    return { isValid: true };
+  };
+
   const updatePeriod = (i, field, val) => {
     const periods = [...form.periods];
-    periods[i] = { ...periods[i], [field]: field === 'periodNumber' ? +val : field === 'isBreak' ? val : val };
+    const updatedPeriod = { ...periods[i], [field]: field === 'periodNumber' ? +val : field === 'isBreak' ? val : val };
+    
+    // Validate time slots when start or end time changes
+    if (field === 'startTime' || field === 'endTime') {
+      const startTime = field === 'startTime' ? val : updatedPeriod.startTime;
+      const endTime = field === 'endTime' ? val : updatedPeriod.endTime;
+      
+      const validation = validateTimeSlot(startTime, endTime, i);
+      if (!validation.isValid) {
+        toast.error(validation.message);
+        return; // Don't update if validation fails
+      }
+    }
+    
+    periods[i] = updatedPeriod;
     setForm({ ...form, periods });
   };
 
@@ -79,34 +157,60 @@ export default function Timeslots() {
             <span className="card-title">Periods</span>
             <button type="button" className="btn btn-secondary btn-sm" onClick={addPeriod}><Plus size={14} /> Add Period</button>
           </div>
+          
+          <div style={{ background: '#f0f9ff', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: '0.8rem', color: '#1e40af' }}>
+            <strong>⚠️ Validation Rules:</strong>
+            <ul style={{ marginTop: 6, paddingLeft: 16, lineHeight: 1.6 }}>
+              <li>Time slots cannot exceed 2 hours duration</li>
+              <li>Periods cannot overlap with each other</li>
+              <li>End time must be after start time</li>
+              <li>Invalid periods will be highlighted in red</li>
+            </ul>
+          </div>
+          
           <div className="table-wrap">
             <table>
               <thead>
                 <tr><th>#</th><th>Start Time</th><th>End Time</th><th>Break?</th><th></th></tr>
               </thead>
               <tbody>
-                {form.periods.map((p, i) => (
-                  <tr key={i} style={{ background: p.isBreak ? '#fef9c3' : undefined }}>
-                    <td>
-                      <input className="form-input" type="number" value={p.periodNumber} style={{ width: 60 }}
-                        onChange={e => updatePeriod(i, 'periodNumber', e.target.value)} />
-                    </td>
-                    <td>
-                      <input className="form-input" type="time" value={p.startTime}
-                        onChange={e => updatePeriod(i, 'startTime', e.target.value)} />
-                    </td>
-                    <td>
-                      <input className="form-input" type="time" value={p.endTime}
-                        onChange={e => updatePeriod(i, 'endTime', e.target.value)} />
-                    </td>
-                    <td>
-                      <input type="checkbox" checked={p.isBreak} onChange={e => updatePeriod(i, 'isBreak', e.target.checked)} />
-                    </td>
-                    <td>
-                      <button type="button" className="btn btn-danger btn-sm" onClick={() => removePeriod(i)}><Trash2 size={13} /></button>
-                    </td>
-                  </tr>
-                ))}
+                {form.periods.map((p, i) => {
+                  const validation = validateTimeSlot(p.startTime, p.endTime, i);
+                  const hasError = !validation.isValid;
+                  
+                  return (
+                    <tr key={i} style={{ 
+                      background: p.isBreak ? '#fef9c3' : hasError ? '#fee2e2' : undefined,
+                      borderLeft: hasError ? '3px solid #dc2626' : undefined
+                    }}>
+                      <td>
+                        <input className="form-input" type="number" value={p.periodNumber} style={{ width: 60 }}
+                          onChange={e => updatePeriod(i, 'periodNumber', e.target.value)} />
+                      </td>
+                      <td>
+                        <input className="form-input" type="time" value={p.startTime}
+                          onChange={e => updatePeriod(i, 'startTime', e.target.value)}
+                          style={{ borderColor: hasError ? '#dc2626' : undefined }} />
+                      </td>
+                      <td>
+                        <input className="form-input" type="time" value={p.endTime}
+                          onChange={e => updatePeriod(i, 'endTime', e.target.value)}
+                          style={{ borderColor: hasError ? '#dc2626' : undefined }} />
+                        {hasError && (
+                          <div style={{ fontSize: '0.7rem', color: '#dc2626', marginTop: 2 }}>
+                            {validation.message}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <input type="checkbox" checked={p.isBreak} onChange={e => updatePeriod(i, 'isBreak', e.target.checked)} />
+                      </td>
+                      <td>
+                        <button type="button" className="btn btn-danger btn-sm" onClick={() => removePeriod(i)}><Trash2 size={13} /></button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
