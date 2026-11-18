@@ -396,6 +396,15 @@ export default function TimetableView() {
     toast.success('Entry moved. Click Save Changes to apply.');
   };
 
+  const handleAlternativeSelect = (targetDay, targetPeriod) => {
+    // Close the conflict dialog first
+    setShowConflictDialog(false);
+    setPendingDrop(null);
+    
+    // Perform the move to the selected alternative slot
+    performMove(targetDay, targetPeriod);
+  };
+
   const handleConflictProceed = () => {
     if (pendingDrop) {
       performMove(pendingDrop.targetDay, pendingDrop.targetPeriod);
@@ -448,6 +457,11 @@ export default function TimetableView() {
         conflicts={showConflictDialog ? pendingDrop?.warnings : null}
         onProceed={handleConflictProceed}
         onCancel={handleConflictCancel}
+        draggedEntry={draggedEntry}
+        allEntries={tt.entries}
+        days={days}
+        periods={periods}
+        onAlternativeSelect={handleAlternativeSelect}
       />
       <div className="topbar">
         <div>
