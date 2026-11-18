@@ -19,7 +19,16 @@ export default function ExcelImport() {
 
   const downloadTemplate = async () => {
     try {
-      const response = await api.get('/excel/template', { responseType: 'blob' });
+      toast.loading('Generating template...', { id: 'download' });
+      
+      const response = await api.get('/excel/template', { 
+        responseType: 'blob',
+        timeout: 30000 // 30 second timeout
+      });
+      
+      if (response.data.size === 0) {
+        throw new Error('Empty file received');
+      }
       
       const blob = new Blob([response.data], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -34,10 +43,19 @@ export default function ExcelImport() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      toast.success('Template downloaded successfully!');
+      toast.success('Template downloaded successfully!', { id: 'download' });
     } catch (error) {
-      toast.error('Failed to download template');
       console.error('Download error:', error);
+      
+      if (error.response?.status === 401) {
+        toast.error('Please login to download template', { id: 'download' });
+      } else if (error.response?.status === 500) {
+        toast.error('Server error generating template', { id: 'download' });
+      } else if (error.code === 'ECONNABORTED') {
+        toast.error('Download timeout - please try again', { id: 'download' });
+      } else {
+        toast.error('Failed to download template', { id: 'download' });
+      }
     }
   };
 

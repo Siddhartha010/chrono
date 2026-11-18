@@ -1,17 +1,12 @@
 const ExcelJS = require('exceljs');
 
 class ExcelService {
-  constructor() {
-    this.workbook = new ExcelJS.Workbook();
-  }
-
   // Generate Excel template with all required sheets
   async generateTemplate() {
-    // Clear any existing worksheets
-    this.workbook.removeWorksheet(this.workbook.worksheets[0]);
+    const workbook = new ExcelJS.Workbook();
 
     // 1. Classes Sheet
-    const classesSheet = this.workbook.addWorksheet('Classes');
+    const classesSheet = workbook.addWorksheet('Classes');
     classesSheet.columns = [
       { header: 'Class Name', key: 'name', width: 15 },
       { header: 'Section', key: 'section', width: 10 },
@@ -27,7 +22,7 @@ class ExcelService {
     ]);
 
     // 2. Subjects Sheet
-    const subjectsSheet = this.workbook.addWorksheet('Subjects');
+    const subjectsSheet = workbook.addWorksheet('Subjects');
     subjectsSheet.columns = [
       { header: 'Subject Name', key: 'name', width: 25 },
       { header: 'Subject Code', key: 'code', width: 15 },
@@ -43,7 +38,7 @@ class ExcelService {
     ]);
 
     // 3. Teachers Sheet
-    const teachersSheet = this.workbook.addWorksheet('Teachers');
+    const teachersSheet = workbook.addWorksheet('Teachers');
     teachersSheet.columns = [
       { header: 'Teacher Name', key: 'name', width: 20 },
       { header: 'Email', key: 'email', width: 25 },
@@ -59,7 +54,7 @@ class ExcelService {
     ]);
 
     // 4. Classrooms Sheet
-    const classroomsSheet = this.workbook.addWorksheet('Classrooms');
+    const classroomsSheet = workbook.addWorksheet('Classrooms');
     classroomsSheet.columns = [
       { header: 'Room Name', key: 'name', width: 15 },
       { header: 'Capacity', key: 'capacity', width: 10 },
@@ -74,7 +69,7 @@ class ExcelService {
     ]);
 
     // 5. Time Slots Sheet
-    const timeSlotsSheet = this.workbook.addWorksheet('TimeSlots');
+    const timeSlotsSheet = workbook.addWorksheet('TimeSlots');
     timeSlotsSheet.columns = [
       { header: 'Days (comma separated)', key: 'days', width: 25 },
       { header: 'Period Number', key: 'periodNumber', width: 15 },
@@ -92,7 +87,7 @@ class ExcelService {
     ]);
 
     // 6. Class-Subject Assignments Sheet
-    const assignmentsSheet = this.workbook.addWorksheet('Assignments');
+    const assignmentsSheet = workbook.addWorksheet('Assignments');
     assignmentsSheet.columns = [
       { header: 'Class Name', key: 'className', width: 15 },
       { header: 'Section', key: 'section', width: 10 },
@@ -107,7 +102,7 @@ class ExcelService {
     ]);
 
     // 7. Instructions Sheet
-    const instructionsSheet = this.workbook.addWorksheet('Instructions');
+    const instructionsSheet = workbook.addWorksheet('Instructions');
     instructionsSheet.columns = [
       { header: 'Sheet', key: 'sheet', width: 15 },
       { header: 'Instructions', key: 'instructions', width: 80 }
@@ -125,11 +120,12 @@ class ExcelService {
 
     // Style headers
     [classesSheet, subjectsSheet, teachersSheet, classroomsSheet, timeSlotsSheet, assignmentsSheet, instructionsSheet].forEach(sheet => {
-      sheet.getRow(1).font = { bold: true };
-      sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F3FF' } };
+      const headerRow = sheet.getRow(1);
+      headerRow.font = { bold: true };
+      headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F3FF' } };
     });
 
-    return this.workbook;
+    return workbook;
   }
 
   // Parse uploaded Excel file
