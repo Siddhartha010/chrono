@@ -30,6 +30,8 @@ router.post('/generate', auth, async (req, res) => {
     if (!classes.length) return res.status(400).json({ message: classId ? 'Selected class not found' : 'No classes found' });
 
     const timeslotConfig = timeslots[0];
+    console.log(`Starting GA for user ${uid} with ${classes.length} classes and ${teachers.length} teachers`);
+    
     const { chromosome, fitnessScore, generation } = runGA(classes, teachers, classrooms, timeslotConfig, constraints);
 
     const entries = chromosome.map(gene => ({
@@ -40,6 +42,15 @@ router.post('/generate', auth, async (req, res) => {
       teacher: gene.teacherId,
       classroom: gene.classroomId
     }));
+
+    // Validate entries for null IDs which cause Mongoose validation errors
+    const invalidEntries = entries.filter(e => !e.class || !e.subject || !e.teacher || !e.classroom);
+    if (invalidEntries.length > 0) {
+      console.error('Invalid entries found:', invalidEntries.length);
+      return res.status(400).json({ 
+        message: 'Generation produced invalid assignments. Please ensure all classes have teachers and subjects assigned, and all subjects have valid hours.' 
+      });
+    }
 
     const timetableName = classId && classes.length === 1 
       ? `${classes[0].name}${classes[0].section ? ` - ${classes[0].section}` : ''} Timetable`

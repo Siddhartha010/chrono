@@ -20,13 +20,20 @@ function shuffle(arr) {
 function buildLessons(classes) {
   const lessons = [];
   for (const cls of classes) {
+    if (!cls.subjects) continue;
     for (const entry of cls.subjects) {
-      const hours = entry.subject?.hoursPerWeek || 3;
+      // Ensure both subject and teacher exist (might be null if deleted)
+      if (!entry.subject || !entry.teacher) continue;
+
+      const hours = entry.subject.hoursPerWeek || 3;
+      const subjectId = entry.subject._id?.toString() || entry.subject.toString();
+      const teacherId = entry.teacher._id?.toString() || entry.teacher.toString();
+
       for (let h = 0; h < hours; h++) {
         lessons.push({
           classId: cls._id.toString(),
-          subjectId: entry.subject?._id?.toString() || entry.subject?.toString(),
-          teacherId: entry.teacher?._id?.toString() || entry.teacher?.toString()
+          subjectId,
+          teacherId
         });
       }
     }
@@ -151,11 +158,16 @@ function runGA(classes, teachers, classrooms, timeslotConfig, gaParams = {}) {
     crossoverRate = 0.8
   } = gaParams;
 
+  const lessons = buildLessons(classes);
+  if (lessons.length === 0) throw new Error('No lessons found to schedule. Please add subjects to your classes.');
+
   const days = timeslotConfig.days;
   const periods = timeslotConfig.periods.filter(p => !p.isBreak);
-  const lessons = buildLessons(classes);
 
-  if (lessons.length === 0) throw new Error('No lessons to schedule');
+  if (!days || days.length === 0) throw new Error('No working days defined in timeslot configuration.');
+  if (!periods || periods.length === 0) throw new Error('No active periods (non-breaks) defined in timeslot configuration.');
+  if (!classrooms || classrooms.length === 0) throw new Error('No classrooms found. Please add at least one classroom.');
+  if (!teachers || teachers.length === 0) throw new Error('No teachers found. Please add at least one teacher.');
 
   // Initial population
   let population = Array.from({ length: populationSize }, () =>
