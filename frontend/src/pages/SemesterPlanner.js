@@ -49,6 +49,8 @@ export default function SemesterPlanner() {
   const [weeklyTimetables, setWeeklyTimetables] = useState([]);
   const [showWeeklyView, setShowWeeklyView] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState(null);
+  const [selectedSemesters, setSelectedSemesters] = useState(new Set());
+  const [selectAll, setSelectAll] = useState(false);
 
   useEffect(() => {
     loadSemesters();
@@ -67,6 +69,9 @@ export default function SemesterPlanner() {
       if (response.data.length > 0 && !selectedSemester) {
         setSelectedSemester(response.data[0]);
       }
+      // Reset selections when loading
+      setSelectedSemesters(new Set());
+      setSelectAll(false);
     } catch (err) {
       toast.error('Failed to load semesters');
     } finally {
@@ -236,6 +241,21 @@ Redistribution suggestions available.`;
     }
   };
 
+  const deleteSemester = async (id) => {
+    if (!window.confirm('Delete this semester? This will also delete all related progress data.')) return;
+    
+    try {
+      await api.delete(`/semesters/${id}`);
+      toast.success('Semester deleted');
+      loadSemesters();
+      if (selectedSemester?._id === id) {
+        setSelectedSemester(null);
+      }
+    } catch (err) {
+      toast.error('Failed to delete semester');
+    }
+  };
+
   const openModal = (type, semester = null) => {
     setModalType(type);
     if (type === 'semester' && semester) {
@@ -252,7 +272,54 @@ Redistribution suggestions available.`;
     setShowModal(true);
   };
 
-  const deleteSemester = async (id) => {
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedSemesters(new Set());
+      setSelectAll(false);
+    } else {
+      setSelectedSemesters(new Set(semesters.map(s => s._id)));
+      setSelectAll(true);
+    }
+  };
+
+  const handleSelectSemester = (semesterId) => {
+    const newSelected = new Set(selectedSemesters);
+    if (newSelected.has(semesterId)) {
+      newSelected.delete(semesterId);
+    } else {
+      newSelected.add(semesterId);
+    }
+    setSelectedSemesters(newSelected);
+    setSelectAll(false);
+  };
+
+  const bulkDeleteSemesters = async () => {
+    if (selectedSemesters.size === 0) {
+      toast.error('No semesters selected');
+      return;
+    }
+    
+    const confirmMessage = `Delete ${selectedSemesters.size} selected semester${selectedSemesters.size > 1 ? 's' : ''}? This will also delete all related timetables and progress data.`;
+    if (!window.confirm(confirmMessage)) return;
+    
+    try {
+      await Promise.all(
+        Array.from(selectedSemesters).map(id => api.delete(`/semesters/${id}`))
+      );
+      toast.success(`Deleted ${selectedSemesters.size} semesters`);
+      
+      // Clear selection if selected semester was deleted
+      if (selectedSemester && selectedSemesters.has(selectedSemester._id)) {
+        setSelectedSemester(null);
+        setWeeklyTimetables([]);
+        setShowWeeklyView(false);
+      }
+      
+      loadSemesters();
+    } catch (err) {
+      toast.error('Failed to delete some semesters');
+    }
+  };
     if (!window.confirm('Delete this semester? This will also delete all related progress data.')) return;
     
     try {
@@ -292,40 +359,73 @@ Redistribution suggestions available.`;
         <div className="card">
           <div className="card-header">
             <span className="card-title">Semesters</span>
+            {semesters.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button 
+                  className="btn btn-secondary btn-sm" 
+                  onClick={handleSelectAll}
+                >
+                  {selectAll ? 'Deselect All' : 'Select All'}
+                </button>
+                {selectedSemesters.size > 0 && (
+                  <button className="btn btn-danger btn-sm" onClick={bulkDeleteSemesters}>
+                    Delete Selected ({selectedSemesters.size})
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <div style={{ maxHeight: 400, overflowY: 'auto' }}>
             {semesters.map(semester => {
               const progress = calculateProgress(semester);
+              const isSelected = selectedSemesters.has(semester._id);
               return (
                 <div 
                   key={semester._id}
                   className={`semester-item ${selectedSemester?._id === semester._id ? 'active' : ''}`}
-                  onClick={() => setSelectedSemester(semester)}
                   style={{
                     padding: 12,
                     borderBottom: '1px solid #e2e8f0',
                     cursor: 'pointer',
-                    background: selectedSemester?._id === semester._id ? '#f0f9ff' : 'transparent'
+                    background: isSelected ? '#e0f2fe' : 
+                               selectedSemester?._id === semester._id ? '#f0f9ff' : 'transparent',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 12
                   }}
                 >
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{semester.name}</div>
-                  <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: 8 }}>
-                    {new Date(semester.startDate).toLocaleDateString()} - {new Date(semester.endDate).toLocaleDateString()}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div className={`badge ${
-                      semester.status === 'active' ? 'badge-green' :
-                      semester.status === 'completed' ? 'badge-blue' : 'badge-secondary'
-                    }`}>
-                      {semester.status}
+                  <input 
+                    type="checkbox" 
+                    checked={isSelected}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      handleSelectSemester(semester._id);
+                    }}
+                    style={{ cursor: 'pointer', marginTop: 4 }}
+                  />
+                  <div 
+                    style={{ flex: 1 }}
+                    onClick={() => setSelectedSemester(semester)}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>{semester.name}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: 8 }}>
+                      {new Date(semester.startDate).toLocaleDateString()} - {new Date(semester.endDate).toLocaleDateString()}
                     </div>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                      {progress.actual}/{progress.total} days
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div className={`badge ${
+                        semester.status === 'active' ? 'badge-green' :
+                        semester.status === 'completed' ? 'badge-blue' : 'badge-secondary'
+                      }`}>
+                        {semester.status}
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                        {progress.actual}/{progress.total} days
+                      </span>
+                    </div>
                   </div>
                 </div>
               );
-            })}
+            })}}
             {semesters.length === 0 && (
               <div className="empty-state" style={{ padding: 20 }}>
                 <Calendar size={32} />
