@@ -24,27 +24,37 @@ export default function ExcelImport() {
       
       const response = await api.get('/excel/template', { 
         responseType: 'blob',
-        timeout: 30000 // 30 second timeout
+        timeout: 30000
       });
+      
+      console.log('Response received:', response.headers['content-type']);
       
       if (response.data.size === 0) {
         throw new Error('Empty file received');
       }
       
-      const blob = new Blob([response.data], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      });
+      // Determine file type and name based on content-type
+      const contentType = response.headers['content-type'];
+      let fileName = 'ChronoGen_Template.csv';
+      let mimeType = 'text/csv';
+      
+      if (contentType && contentType.includes('spreadsheet')) {
+        fileName = 'ChronoGen_Template.xlsx';
+        mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      }
+      
+      const blob = new Blob([response.data], { type: mimeType });
       
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'ChronoGen_Template.xlsx';
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      toast.success('Template downloaded successfully!', { id: 'download' });
+      toast.success(`Template downloaded successfully as ${fileName}!`, { id: 'download' });
     } catch (error) {
       console.error('Download error:', error);
       
@@ -63,8 +73,9 @@ export default function ExcelImport() {
   const handleFileSelect = (event) => {
     const selectedFile = event.target.files[0];
     if (selectedFile) {
-      if (!selectedFile.name.endsWith('.xlsx')) {
-        toast.error('Please select a .xlsx file');
+      // Accept both .xlsx and .csv files
+      if (!selectedFile.name.endsWith('.xlsx') && !selectedFile.name.endsWith('.csv')) {
+        toast.error('Please select a .xlsx or .csv file');
         return;
       }
       setFile(selectedFile);
@@ -80,12 +91,13 @@ export default function ExcelImport() {
     }
 
     setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
+    
     try {
-      const response = await api.post('/excel/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      // Simple upload without FormData for now
+      const response = await api.post('/excel/upload', {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type
       });
       
       setParsedData(response.data.data);
@@ -98,8 +110,8 @@ export default function ExcelImport() {
         toast.warning(`Found ${response.data.data.warnings.length} warnings`);
       }
     } catch (error) {
-      toast.error('Upload failed');
       console.error('Upload error:', error);
+      toast.error('Upload failed: ' + (error.response?.data?.error || error.message));
     } finally {
       setUploading(false);
     }
@@ -349,7 +361,7 @@ export default function ExcelImport() {
             <div style={{ marginBottom: 16 }}>
               <input 
                 type="file" 
-                accept=".xlsx" 
+                accept=".xlsx,.csv" 
                 onChange={handleFileSelect}
                 style={{ marginBottom: 12 }}
               />
