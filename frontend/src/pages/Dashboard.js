@@ -28,6 +28,32 @@ export default function Dashboard() {
         api.get('/schedules')
       ]);
       
+      // Get timetables with their latest substitute information
+      const timetablesWithSubs = await Promise.all(
+        tt.data.map(async (timetable) => {
+          try {
+            // Get substitutes for this timetable
+            const timetableSubs = sub.data.filter(substitute => 
+              substitute.timetableId === timetable._id
+            );
+            
+            // Find the most recent substitute for this timetable
+            const latestSub = timetableSubs.length > 0 
+              ? timetableSubs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0]
+              : null;
+            
+            return {
+              ...timetable,
+              hasSubstitutes: timetableSubs.length > 0,
+              substituteCount: timetableSubs.length,
+              lastUpdated: latestSub ? latestSub.createdAt : timetable.updatedAt || timetable.createdAt
+            };
+          } catch (err) {
+            return timetable;
+          }
+        })
+      );
+      
       setCounts({ 
         teachers: t.data.length, 
         subjects: s.data.length, 
@@ -37,14 +63,17 @@ export default function Dashboard() {
         unavailabilities: una.data.length
       });
       
-      // Combine all timetables (regular, personal, and exam schedules)
+      // Combine all timetables (regular with substitutes, personal, and exam schedules)
       const allTimetables = [
-        ...tt.data.map(timetable => ({
+        ...timetablesWithSubs.map(timetable => ({
           ...timetable,
           type: 'regular',
-          displayName: timetable.name,
+          displayName: timetable.hasSubstitutes 
+            ? `${timetable.name} (${timetable.substituteCount} substitutes)`
+            : timetable.name,
           fitnessScore: timetable.fitnessScore,
-          generation: timetable.generation
+          generation: timetable.generation,
+          createdAt: timetable.lastUpdated // Use last updated time for sorting
         })),
         ...schedules.data.map(schedule => ({
           ...schedule,
@@ -61,6 +90,7 @@ export default function Dashboard() {
       
       console.log('Dashboard loaded:', {
         regularTimetables: tt.data.length,
+        timetablesWithSubstitutes: timetablesWithSubs.filter(t => t.hasSubstitutes).length,
         schedules: schedules.data.length,
         totalTimetables: tt.data.length + schedules.data.length,
         substitutes: sub.data.length,
@@ -164,10 +194,11 @@ export default function Dashboard() {
                         <td><strong>{tt.displayName}</strong></td>
                         <td>
                           <span className={`badge ${
-                            tt.type === 'regular' ? 'badge-blue' :
+                            tt.type === 'regular' ? (tt.hasSubstitutes ? 'badge-purple' : 'badge-blue') :
                             tt.type === 'exam' ? 'badge-red' : 'badge-green'
                           }`}>
-                            {tt.type === 'regular' ? 'Timetable' :
+                            {tt.type === 'regular' ? 
+                              (tt.hasSubstitutes ? 'Timetable (Updated)' : 'Timetable') :
                              tt.type === 'exam' ? 'Exam Schedule' : 'Personal Schedule'}
                           </span>
                         </td>
