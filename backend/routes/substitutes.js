@@ -82,9 +82,33 @@ router.post('/assign', auth, async (req, res) => {
   try {
     const { timetableId, originalEntry, substituteTeacher, isLibrary, reason } = req.body;
     
+    // Get the timetable to find the actual entry
+    const timetable = await Timetable.findOne({ _id: timetableId, createdBy: req.user.id })
+      .populate('entries.class entries.subject entries.teacher entries.classroom');
+    if (!timetable) return res.status(404).json({ message: 'Timetable not found' });
+    
+    // Find the actual timetable entry
+    const actualEntry = timetable.entries.find(e => 
+      e.day === originalEntry.day &&
+      e.period === originalEntry.period &&
+      (originalEntry.class ? e.class?._id?.toString() === originalEntry.class?.toString() : true) &&
+      (originalEntry.teacher ? e.teacher?._id?.toString() === originalEntry.teacher?.toString() : true)
+    );
+    
+    if (!actualEntry) {
+      return res.status(400).json({ message: 'Could not find the specified timetable entry' });
+    }
+    
     const sub = await Substitute.create({
       timetableId,
-      originalEntry,
+      originalEntry: {
+        day: actualEntry.day,
+        period: actualEntry.period,
+        class: actualEntry.class?._id,
+        subject: actualEntry.subject?._id,
+        teacher: actualEntry.teacher?._id,
+        classroom: actualEntry.classroom?._id
+      },
       type: 'substitute',
       substituteTeacher: isLibrary ? null : substituteTeacher,
       isLibrary,
@@ -108,11 +132,44 @@ router.post('/swap-request', auth, async (req, res) => {
   try {
     const { timetableId, originalEntry, swapWith, requestedBy, reason } = req.body;
     
+    // Get the timetable to find the actual entries
+    const timetable = await Timetable.findOne({ _id: timetableId, createdBy: req.user.id })
+      .populate('entries.class entries.subject entries.teacher entries.classroom');
+    if (!timetable) return res.status(404).json({ message: 'Timetable not found' });
+    
+    // Find the actual timetable entries for both slots
+    const entry1 = timetable.entries.find(e => 
+      e.day === originalEntry.day &&
+      e.period === originalEntry.period &&
+      e.teacher?._id?.toString() === originalEntry.teacher?.toString()
+    );
+    
+    const entry2 = timetable.entries.find(e => 
+      e.day === swapWith.day &&
+      e.period === swapWith.period &&
+      e.teacher?._id?.toString() === swapWith.teacher?.toString()
+    );
+    
+    if (!entry1 || !entry2) {
+      return res.status(400).json({ message: 'Could not find the specified timetable entries' });
+    }
+    
     const swap = await Substitute.create({
       timetableId,
-      originalEntry,
+      originalEntry: {
+        day: entry1.day,
+        period: entry1.period,
+        class: entry1.class?._id,
+        subject: entry1.subject?._id,
+        teacher: entry1.teacher?._id,
+        classroom: entry1.classroom?._id
+      },
       type: 'swap',
-      swapWith,
+      swapWith: {
+        day: entry2.day,
+        period: entry2.period,
+        teacher: entry2.teacher?._id
+      },
       requestedBy,
       reason,
       status: 'pending', // Swaps need approval
@@ -170,19 +227,81 @@ router.get('/timetable/:id', auth, async (req, res) => {
     
     console.log('Backend: Timetable entries:', timetable.entries.length);
     console.log('Backend: Found substitutes:', substitutes.length);
+    
+    // Apply substitutions and swaps to create the updated timetable
+    let updatedEntries = [...timetable.entries];
+    
     substitutes.forEach((sub, i) => {
-      console.log(`Backend: Substitute ${i}:`, {
+      console.log(`Backend: Processing substitute ${i}:`, {
+        type: sub.type,
         day: sub.originalEntry?.day,
         period: sub.originalEntry?.period,
         classId: sub.originalEntry?.class?._id || sub.originalEntry?.class,
         teacherId: sub.originalEntry?.teacher?._id || sub.originalEntry?.teacher,
         substituteTeacher: sub.substituteTeacher?.name,
+        swapWith: sub.swapWith,
         status: sub.status
       });
+      
+      if (sub.type === 'substitute') {
+        // Handle substitute assignments
+        const entryIndex = updatedEntries.findIndex(entry => 
+          entry.day === sub.originalEntry.day &&
+          entry.period === sub.originalEntry.period &&
+          entry.class?._id?.toString() === (sub.originalEntry.class?._id || sub.originalEntry.class)?.toString() &&
+          entry.teacher?._id?.toString() === (sub.originalEntry.teacher?._id || sub.originalEntry.teacher)?.toString()
+        );
+        
+        if (entryIndex !== -1) {
+          if (sub.isLibrary) {
+            updatedEntries[entryIndex] = {
+              ...updatedEntries[entryIndex],
+              subject: { name: 'Library', _id: 'library' },
+              teacher: { name: 'Library Period', _id: 'library' },
+              isSubstitute: true
+            };
+          } else if (sub.substituteTeacher) {
+            updatedEntries[entryIndex] = {
+              ...updatedEntries[entryIndex],
+              teacher: sub.substituteTeacher,
+              isSubstitute: true
+            };
+          }
+        }
+      } else if (sub.type === 'swap') {
+        // Handle teacher swaps
+        const entry1Index = updatedEntries.findIndex(entry => 
+          entry.day === sub.originalEntry.day &&
+          entry.period === sub.originalEntry.period &&
+          entry.teacher?._id?.toString() === (sub.originalEntry.teacher?._id || sub.originalEntry.teacher)?.toString()
+        );
+        
+        const entry2Index = updatedEntries.findIndex(entry => 
+          entry.day === sub.swapWith.day &&
+          entry.period === sub.swapWith.period &&
+          entry.teacher?._id?.toString() === (sub.swapWith.teacher?._id || sub.swapWith.teacher)?.toString()
+        );
+        
+        if (entry1Index !== -1 && entry2Index !== -1) {
+          // Swap the teachers
+          const temp = updatedEntries[entry1Index].teacher;
+          updatedEntries[entry1Index] = {
+            ...updatedEntries[entry1Index],
+            teacher: updatedEntries[entry2Index].teacher,
+            isSwapped: true
+          };
+          updatedEntries[entry2Index] = {
+            ...updatedEntries[entry2Index],
+            teacher: temp,
+            isSwapped: true
+          };
+        }
+      }
     });
     
     res.json({
       ...timetable.toObject(),
+      entries: updatedEntries,
       substitutes,
       days: timeslot?.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
       periods: timeslot?.periods || []

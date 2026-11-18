@@ -216,12 +216,26 @@ export default function SubstituteManager() {
   useEffect(() => { load(); }, []);
 
   const openSubstitute = () => {
-    setForm({ timetableId: '', day: '', period: '', originalEntry: {}, reason: '', isLibrary: false });
+    setForm({ 
+      timetableId: selectedTimetable, 
+      day: '', 
+      period: '', 
+      reason: '', 
+      isLibrary: false,
+      substituteTeacher: ''
+    });
     setModal('substitute');
   };
 
   const openSwap = () => {
-    setForm({ timetableId: '', originalEntry: {}, swapWith: {}, reason: '' });
+    setForm({ 
+      timetableId: selectedTimetable, 
+      day1: '', 
+      period1: '', 
+      day2: '', 
+      period2: '', 
+      reason: '' 
+    });
     setModal('swap');
   };
 
@@ -245,23 +259,42 @@ export default function SubstituteManager() {
 
   const assignSubstitute = async e => {
     e.preventDefault();
+    
+    if (!timetableView) {
+      toast.error('Please select a timetable first');
+      return;
+    }
+    
+    // Find the actual timetable entry
+    const actualEntry = timetableView.entries.find(e => 
+      e.day === form.day &&
+      e.period === parseInt(form.period)
+    );
+    
+    if (!actualEntry) {
+      toast.error('Could not find timetable entry for the selected slot');
+      return;
+    }
+    
     try {
       await api.post('/substitutes/assign', {
         timetableId: form.timetableId,
         originalEntry: {
-          day: form.day,
-          period: parseInt(form.period),
-          class: form.classId,
-          subject: form.subjectId,
-          teacher: form.originalTeacherId,
-          classroom: form.classroomId
+          day: actualEntry.day,
+          period: actualEntry.period,
+          class: actualEntry.class?._id,
+          subject: actualEntry.subject?._id,
+          teacher: actualEntry.teacher?._id,
+          classroom: actualEntry.classroom?._id
         },
         substituteTeacher: form.isLibrary ? null : form.substituteTeacher,
         isLibrary: form.isLibrary,
         reason: form.reason
       });
       toast.success(form.isLibrary ? 'Library period assigned' : 'Substitute assigned');
-      setModal(null); load();
+      setModal(null); 
+      load();
+      loadTimetableView(form.timetableId); // Refresh timetable view
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error');
     }
@@ -269,24 +302,47 @@ export default function SubstituteManager() {
 
   const requestSwap = async e => {
     e.preventDefault();
+    
+    if (!timetableView) {
+      toast.error('Please select a timetable first');
+      return;
+    }
+    
+    // Find the actual timetable entries for both slots
+    const entry1 = timetableView.entries.find(e => 
+      e.day === form.day1 &&
+      e.period === parseInt(form.period1)
+    );
+    
+    const entry2 = timetableView.entries.find(e => 
+      e.day === form.day2 &&
+      e.period === parseInt(form.period2)
+    );
+    
+    if (!entry1 || !entry2) {
+      toast.error('Could not find timetable entries for the selected slots');
+      return;
+    }
+    
     try {
       await api.post('/substitutes/swap-request', {
         timetableId: form.timetableId,
         originalEntry: {
-          day: form.day1,
-          period: parseInt(form.period1),
-          teacher: form.teacher1
+          day: entry1.day,
+          period: entry1.period,
+          teacher: entry1.teacher?._id
         },
         swapWith: {
-          day: form.day2,
-          period: parseInt(form.period2),
-          teacher: form.teacher2
+          day: entry2.day,
+          period: entry2.period,
+          teacher: entry2.teacher?._id
         },
-        requestedBy: form.teacher1,
+        requestedBy: entry1.teacher?._id,
         reason: form.reason
       });
       toast.success('Swap request submitted');
-      setModal(null); load();
+      setModal(null); 
+      load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error');
     }
