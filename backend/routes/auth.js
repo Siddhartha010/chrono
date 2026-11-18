@@ -33,9 +33,15 @@ router.post('/login', async (req, res) => {
 });
 
 // TEMPORARY: Excel routes added here to ensure deployment
+// DEPLOYMENT VERSION: 2024-12-19-v3
 router.get('/excel-test', (req, res) => {
-  console.log('Excel test route called via auth');
-  res.json({ message: 'Excel route is working via auth', timestamp: new Date().toISOString() });
+  console.log('Excel test route called via auth - DEPLOYMENT v3');
+  res.json({ 
+    message: 'Excel route is working via auth', 
+    timestamp: new Date().toISOString(),
+    deploymentVersion: '2024-12-19-v3',
+    route: 'auth/excel-test'
+  });
 });
 
 router.get('/excel-template', (req, res) => {
