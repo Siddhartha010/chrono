@@ -329,13 +329,21 @@ Redistribution suggestions available.`;
   };
 
   const calculateProgress = (semester) => {
-    if (!semester.academicCalendar) return { total: 0, actual: 0, percentage: 0 };
+    if (!semester.academicCalendar) return { total: 0, actual: 0, percentage: 0, totalDays: 0 };
     
     const total = semester.academicCalendar.totalTeachingDays || 0;
     const actual = semester.academicCalendar.actualTeachingDays || 0;
     const percentage = total > 0 ? Math.round((actual / total) * 100) : 0;
     
-    return { total, actual, percentage };
+    // Calculate total days between start and end date
+    let totalDays = 0;
+    if (semester.startDate && semester.endDate) {
+      const start = new Date(semester.startDate);
+      const end = new Date(semester.endDate);
+      totalDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    }
+    
+    return { total, actual, percentage, totalDays };
   };
 
   if (loading) return <div className="page"><div className="spinner" /></div>;
@@ -451,7 +459,14 @@ Redistribution suggestions available.`;
                   </div>
                 </div>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+                  <div className="stat-card">
+                    <div className="stat-icon gray"><Clock size={20} /></div>
+                    <div>
+                      <div className="stat-value">{calculateProgress(selectedSemester).totalDays}</div>
+                      <div className="stat-label">Total Days</div>
+                    </div>
+                  </div>
                   <div className="stat-card">
                     <div className="stat-icon blue"><Calendar size={20} /></div>
                     <div>

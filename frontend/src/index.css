@@ -123,6 +123,7 @@ body {
 .stat-icon.orange { background: #ffedd5; color: #ea580c; }
 .stat-icon.teal   { background: #ccfbf1; color: #0d9488; }
 .stat-icon.red    { background: #fee2e2; color: #dc2626; }
+.stat-icon.gray   { background: #f1f5f9; color: #64748b; }
 
 /* Semester planner styles */
 .semester-item:hover {
