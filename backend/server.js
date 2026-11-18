@@ -25,6 +25,21 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Test if excel route loads
+try {
+  app.use('/api/excel', require('./routes/excel-test'));
+  console.log('Excel routes loaded successfully');
+} catch (error) {
+  console.error('Failed to load Excel routes:', error);
+  // Fallback route
+  app.get('/api/excel/template', (req, res) => {
+    console.log('Fallback template route called');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="fallback.csv"');
+    res.send('Class,Section\nTest Class,A\nTest Class,B');
+  });
+}
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/teachers', require('./routes/teachers'));
@@ -38,7 +53,6 @@ app.use('/api/schedules', require('./routes/schedules'));
 app.use('/api/substitutes', require('./routes/substitutes'));
 app.use('/api/unavailability', require('./routes/unavailability'));
 app.use('/api/semesters', require('./routes/semesters'));
-app.use('/api/excel', require('./routes/excel-simple'));
 
 const PORT = process.env.PORT || 5000;
 
