@@ -55,47 +55,8 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Excel routes - BEFORE other API routes to avoid conflicts
-app.get('/api/excel/test', (req, res) => {
-  console.log('Excel test route called');
-  res.json({ message: 'Excel route is working', timestamp: new Date().toISOString() });
-});
-
-app.get('/api/excel/template', (req, res) => {
-  console.log('Excel template route called');
-  console.log('Request headers:', req.headers);
-  try {
-    const simpleCSV = `Class Name,Section,Strength\nBTech CSE,A,60\nBTech CSE,B,58\nBCS,A,45`;
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="template.csv"');
-    res.send(simpleCSV);
-    console.log('CSV sent successfully');
-  } catch (error) {
-    console.error('Template error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/excel/upload', (req, res) => {
-  console.log('Excel upload route called');
-  console.log('Request body:', req.body);
-  res.json({
-    success: true,
-    message: 'Upload route working',
-    data: {
-      classes: [{ name: 'Test Class', section: 'A', strength: 30 }],
-      subjects: [{ name: 'Test Subject', code: 'TS101', hoursPerWeek: 3 }],
-      teachers: [{ name: 'Test Teacher', email: 'test@test.com' }],
-      classrooms: [{ name: 'Test Room', capacity: 30 }],
-      timeSlots: { days: ['Monday'], periods: [{ periodNumber: 1, startTime: '09:00', endTime: '10:00' }] },
-      assignments: [{ className: 'Test Class', section: 'A', subjectName: 'Test Subject', teacherName: 'Test Teacher' }],
-      errors: [],
-      warnings: ['This is a test response']
-    }
-  });
-});
-
 // Other API Routes
+app.use('/api/excel', require('./routes/excel'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/teachers', require('./routes/teachers'));
 app.use('/api/subjects', require('./routes/subjects'));

@@ -160,68 +160,86 @@ router.get('/template', auth, async (req, res) => {
 // Upload and parse Excel file
 router.post('/upload', auth, upload.single('file'), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-    console.log('File received:', req.file.originalname, req.file.size, 'bytes');
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(req.file.buffer);
 
-    // Simple parsing without ExcelService
     const result = {
-      classes: [
-        { name: 'Sample Class', section: 'A', strength: 30, course: 'Sample' }
-      ],
-      subjects: [
-        { name: 'Sample Subject', code: 'SS101', hoursPerWeek: 3, isLab: false, course: 'Sample' }
-      ],
-      teachers: [
-        { name: 'Sample Teacher', email: 'teacher@example.com', subjects: ['Sample Subject'], maxHoursPerDay: 6, maxHoursPerWeek: 24, course: 'Sample' }
-      ],
-      classrooms: [
-        { name: 'Room 101', capacity: 30, isLab: false, building: 'Main' }
-      ],
-      timeSlots: {
-        days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-        periods: [
-          { periodNumber: 1, startTime: '09:00', endTime: '10:00', isBreak: false },
-          { periodNumber: 2, startTime: '10:00', endTime: '11:00', isBreak: false }
-        ]
-      },
-      assignments: [
-        { className: 'Sample Class', section: 'A', subjectName: 'Sample Subject', teacherName: 'Sample Teacher' }
-      ],
-      errors: [],
-      warnings: ['This is sample data. Please upload a properly filled Excel template.']
+      classes: [], subjects: [], teachers: [], classrooms: [],
+      timeSlots: { days: [], periods: [] }, assignments: [],
+      errors: [], warnings: []
     };
 
-    // Try to parse Excel if ExcelJS is available
-    try {
-      const ExcelJS = require('exceljs');
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(req.file.buffer);
-      
-      // Parse actual Excel data here if needed
-      console.log('Excel file parsed successfully');
-      result.warnings = ['Excel file uploaded successfully. Using sample data for demo.'];
-    } catch (excelError) {
-      console.log('Excel parsing failed, using sample data:', excelError.message);
-      result.warnings.push('Excel parsing not available. Using sample data.');
+    const getSheet = name => workbook.getWorksheet(name);
+    const rowToObj = row => {
+      const obj = {};
+      row.eachCell({ includeEmpty: true }, (cell, col) => {
+        const header = row.worksheet.getRow(1).getCell(col).value;
+        if (header) obj[String(header).trim()] = cell.value !== null ? cell.value : '';
+      });
+      return obj;
+    };
+    const sheetRows = name => {
+      const sheet = getSheet(name);
+      if (!sheet) return [];
+      const rows = [];
+      sheet.eachRow((row, i) => { if (i > 1) rows.push(rowToObj(row)); });
+      return rows;
+    };
+
+    // Parse Classes
+    for (const r of sheetRows('Classes')) {
+      if (!r['Class Name']) continue;
+      result.classes.push({ name: String(r['Class Name']), section: String(r['Section'] || 'A'), strength: Number(r['Strength']) || 30, course: String(r['Course'] || '') });
     }
-    
-    res.json({
-      success: true,
-      data: result,
-      summary: {
-        classes: result.classes.length,
-        subjects: result.subjects.length,
-        teachers: result.teachers.length,
-        classrooms: result.classrooms.length,
-        timeSlots: result.timeSlots.periods.length,
-        assignments: result.assignments.length,
-        errors: result.errors.length,
-        warnings: result.warnings.length
+
+    // Parse Subjects
+    for (const r of sheetRows('Subjects')) {
+      if (!r['Subject Name']) continue;
+      result.subjects.push({ name: String(r['Subject Name']), code: String(r['Subject Code'] || ''), hoursPerWeek: Number(r['Hours Per Week']) || 3, isLab: String(r['Is Lab']).toLowerCase() === 'yes' || r['Is Lab'] === true, course: String(r['Course'] || '') });
+    }
+
+    // Parse Teachers
+    for (const r of sheetRows('Teachers')) {
+      if (!r['Teacher Name']) continue;
+      const subjectsRaw = r['Subjects'] || r['Subject Preferences'] || '';
+      result.teachers.push({ name: String(r['Teacher Name']), email: String(r['Email'] || ''), subjects: String(subjectsRaw).split(',').map(s => s.trim()).filter(Boolean), maxHoursPerDay: Number(r['Max Hours Per Day']) || 6, maxHoursPerWeek: Number(r['Max Hours Per Week']) || 24 });
+    }
+
+    // Parse Classrooms
+    for (const r of sheetRows('Classrooms')) {
+      if (!r['Room Name']) continue;
+      result.classrooms.push({ name: String(r['Room Name']), capacity: Number(r['Capacity']) || 30, isLab: String(r['Is Lab']).toLowerCase() === 'yes' || r['Is Lab'] === true, building: String(r['Building'] || 'Main') });
+    }
+
+    // Parse TimeSlots
+    const tsRows = sheetRows('TimeSlots');
+    const daysSet = new Set();
+    for (const r of tsRows) {
+      const isBreak = String(r['Is Break']).toLowerCase() === 'yes' || r['Is Break'] === true;
+      if (!isBreak) {
+        String(r['Days'] || '').split(',').forEach(d => daysSet.add(d.trim()));
+        result.timeSlots.periods.push({ periodNumber: Number(r['Period Number']), startTime: String(r['Start Time'] || ''), endTime: String(r['End Time'] || ''), isBreak: false });
       }
-    });
+    }
+    result.timeSlots.days = [...daysSet].filter(Boolean);
+
+    // Parse Assignments
+    for (const r of sheetRows('Assignments')) {
+      if (!r['Class Name'] || !r['Subject Name'] || !r['Teacher Name']) continue;
+      result.assignments.push({ className: String(r['Class Name']), section: String(r['Section'] || 'A'), subjectName: String(r['Subject Name']), teacherName: String(r['Teacher Name']) });
+    }
+
+    if (!result.classes.length) result.errors.push('No classes found. Check Classes sheet.');
+    if (!result.subjects.length) result.errors.push('No subjects found. Check Subjects sheet.');
+    if (!result.teachers.length) result.errors.push('No teachers found. Check Teachers sheet.');
+    if (!result.classrooms.length) result.errors.push('No classrooms found. Check Classrooms sheet.');
+    if (!result.timeSlots.periods.length) result.errors.push('No time slots found. Check TimeSlots sheet.');
+    if (!result.assignments.length) result.warnings.push('No assignments found. Classes may have no subjects assigned.');
+
+    res.json({ success: true, data: result });
   } catch (error) {
     console.error('File upload error:', error);
     res.status(500).json({ error: 'Failed to parse Excel file', details: error.message });
@@ -334,12 +352,86 @@ router.post('/import', auth, async (req, res) => {
   }
 });
 
-// Generate timetable from imported data
+// Generate timetable directly from parsed Excel data
 router.post('/generate', auth, async (req, res) => {
   try {
     const userId = req.user.id;
+    const { data } = req.body;
 
-    // Fetch all required data
+    if (!data) return res.status(400).json({ error: 'No data provided' });
+
+    // Save subjects
+    const subjectMap = {};
+    for (const s of data.subjects) {
+      let subject = await Subject.findOne({ name: s.name, createdBy: userId });
+      if (!subject) subject = await Subject.create({
+        name: s.name, code: s.code,
+        hoursPerWeek: s.hoursPerWeek || 3,
+        isLab: s.isLab === true || s.isLab === 'Yes' || s.isLab === 'true',
+        createdBy: userId
+      });
+      subjectMap[s.name] = subject._id;
+    }
+
+    // Save classrooms
+    const classroomMap = {};
+    for (const r of data.classrooms) {
+      let room = await Classroom.findOne({ name: r.name, createdBy: userId });
+      if (!room) room = await Classroom.create({
+        name: r.name, capacity: r.capacity || 30,
+        isLab: r.isLab === true || r.isLab === 'Yes' || r.isLab === 'true',
+        building: r.building || 'Main',
+        createdBy: userId
+      });
+      classroomMap[r.name] = room._id;
+    }
+
+    // Save teachers
+    const teacherMap = {};
+    for (const t of data.teachers) {
+      let teacher = await Teacher.findOne({ name: t.name, createdBy: userId });
+      if (!teacher) {
+        const subjectIds = (t.subjects || []).map(n => subjectMap[n]).filter(Boolean);
+        teacher = await Teacher.create({
+          name: t.name, email: t.email,
+          subjects: subjectIds,
+          maxHoursPerDay: t.maxHoursPerDay || 6,
+          maxHoursPerWeek: t.maxHoursPerWeek || 24,
+          createdBy: userId
+        });
+      }
+      teacherMap[t.name] = teacher._id;
+    }
+
+    // Save classes with assignments
+    for (const c of data.classes) {
+      let cls = await Class.findOne({ name: c.name, section: c.section, createdBy: userId });
+      if (!cls) {
+        const classAssignments = (data.assignments || []).filter(
+          a => a.className === c.name && a.section === c.section
+        );
+        const subjects = classAssignments
+          .map(a => ({ subject: subjectMap[a.subjectName], teacher: teacherMap[a.teacherName] }))
+          .filter(s => s.subject && s.teacher);
+        await Class.create({
+          name: c.name, section: c.section,
+          strength: c.strength || 30,
+          subjects, createdBy: userId
+        });
+      }
+    }
+
+    // Save timeslot
+    let timeslot = await Timeslot.findOne({ createdBy: userId });
+    if (!timeslot && data.timeSlots) {
+      timeslot = await Timeslot.create({
+        days: data.timeSlots.days,
+        periods: data.timeSlots.periods,
+        createdBy: userId
+      });
+    }
+
+    // Fetch all saved data for GA
     const [classes, teachers, classrooms, timeslots] = await Promise.all([
       Class.find({ createdBy: userId }).populate('subjects.subject subjects.teacher'),
       Teacher.find({ createdBy: userId }),
@@ -351,33 +443,21 @@ router.post('/generate', auth, async (req, res) => {
       return res.status(400).json({ error: 'Missing required data for timetable generation' });
     }
 
-    // Run genetic algorithm
     const { chromosome, fitnessScore, generation } = runGA(
-      classes, 
-      teachers, 
-      classrooms, 
-      timeslots[0],
+      classes, teachers, classrooms, timeslots[0],
       { populationSize: 50, maxGenerations: 200 }
     );
 
-    // Create timetable entries
     const entries = chromosome.map(gene => ({
-      day: gene.day,
-      period: gene.period,
-      class: gene.classId,
-      subject: gene.subjectId,
-      teacher: gene.teacherId,
-      classroom: gene.classroomId
+      day: gene.day, period: gene.period,
+      class: gene.classId, subject: gene.subjectId,
+      teacher: gene.teacherId, classroom: gene.classroomId
     }));
 
-    // Save timetable
     const timetable = await Timetable.create({
       name: `Excel Import - ${new Date().toLocaleDateString()}`,
-      entries,
-      fitnessScore: Math.round(fitnessScore * 100),
-      generation,
-      status: 'completed',
-      createdBy: userId
+      entries, fitnessScore: Math.round(fitnessScore * 100),
+      generation, status: 'completed', createdBy: userId
     });
 
     const populated = await Timetable.findById(timetable._id)
@@ -386,7 +466,7 @@ router.post('/generate', auth, async (req, res) => {
     res.json({ success: true, timetable: populated });
   } catch (error) {
     console.error('Timetable generation error:', error);
-    res.status(500).json({ error: 'Failed to generate timetable' });
+    res.status(500).json({ error: 'Failed to generate timetable', details: error.message });
   }
 });
 
