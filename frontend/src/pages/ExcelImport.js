@@ -6,18 +6,13 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import SystemDebug from '../components/SystemDebug';
-import ExcelTest from '../components/ExcelTest';
-import DeploymentCheck from '../components/DeploymentCheck';
 
 export default function ExcelImport() {
   const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [parsedData, setParsedData] = useState(null);
-  const [importResults, setImportResults] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
 
   const downloadTemplate = async () => {
@@ -83,7 +78,6 @@ export default function ExcelImport() {
       }
       setFile(selectedFile);
       setParsedData(null);
-      setImportResults(null);
     }
   };
 
@@ -120,29 +114,10 @@ export default function ExcelImport() {
     }
   };
 
-  const importData = async () => {
-    if (!parsedData || parsedData.errors.length > 0) {
-      toast.error('Cannot import data with errors');
-      return;
-    }
-
-    setImporting(true);
-    try {
-      const response = await api.post('/excel/import', { data: parsedData });
-      setImportResults(response.data.results);
-      toast.success('Data imported successfully!');
-    } catch (error) {
-      toast.error('Import failed');
-      console.error('Import error:', error);
-    } finally {
-      setImporting(false);
-    }
-  };
-
   const generateTimetable = async () => {
     setGenerating(true);
     try {
-      const response = await api.post('/excel/generate');
+      const response = await api.post('/excel/generate', { data: parsedData });
       toast.success('Timetable generated successfully!');
       navigate(`/timetable/${response.data.timetable._id}`);
     } catch (error) {
@@ -278,58 +253,7 @@ export default function ExcelImport() {
     );
   };
 
-  const renderImportResults = () => {
-    if (!importResults) return null;
 
-    return (
-      <div className="card" style={{ marginTop: 16 }}>
-        <div className="card-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <CheckCircle size={20} style={{ color: '#16a34a' }} />
-            <span className="card-title">Import Results</span>
-          </div>
-        </div>
-        
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
-          <div className="stat-card">
-            <div className="stat-icon green"><FileText size={16} /></div>
-            <div>
-              <div className="stat-value">{importResults.subjects}</div>
-              <div className="stat-label">Subjects</div>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon blue"><Users size={16} /></div>
-            <div>
-              <div className="stat-value">{importResults.teachers}</div>
-              <div className="stat-label">Teachers</div>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon orange"><MapPin size={16} /></div>
-            <div>
-              <div className="stat-value">{importResults.classrooms}</div>
-              <div className="stat-label">Classrooms</div>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon purple"><Users size={16} /></div>
-            <div>
-              <div className="stat-value">{importResults.classes}</div>
-              <div className="stat-label">Classes</div>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon teal"><Clock size={16} /></div>
-            <div>
-              <div className="stat-value">{importResults.timeslots}</div>
-              <div className="stat-label">Timeslots</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="page">
@@ -338,10 +262,6 @@ export default function ExcelImport() {
       </div>
 
       <div style={{ marginTop: 24, maxWidth: 1000 }}>
-        <DeploymentCheck />
-        <ExcelTest />
-        <SystemDebug />
-        
         {/* Step 1: Download Template */}
         <div className="card">
           <div className="card-header">
@@ -404,24 +324,24 @@ export default function ExcelImport() {
         {/* Validation Results */}
         {renderValidation()}
 
-        {/* Step 3: Import Data */}
-        {parsedData && (
+        {/* Step 3: Generate Timetable */}
+        {parsedData && parsedData.errors.length === 0 && (
           <div className="card" style={{ marginTop: 16 }}>
             <div className="card-header">
-              <span className="card-title">Step 3: Import to Database</span>
+              <span className="card-title">Step 3: Generate Timetable</span>
             </div>
             <div>
               <p style={{ color: '#64748b', marginBottom: 12 }}>
-                Import the parsed data into your ChronoGen database.
+                Generate an optimized timetable using the parsed data.
               </p>
               
               <button 
                 className="btn btn-success" 
-                onClick={importData}
-                disabled={parsedData.errors.length > 0 || importing}
+                onClick={generateTimetable}
+                disabled={generating}
               >
-                {importing ? <Loader size={16} className="spinner" /> : <Database size={16} />}
-                {importing ? 'Importing...' : 'Import Data'}
+                {generating ? <Loader size={16} className="spinner" /> : <Wand2 size={16} />}
+                {generating ? 'Generating...' : 'Generate Timetable'}
               </button>
               
               {parsedData.errors.length > 0 && (
@@ -433,35 +353,9 @@ export default function ExcelImport() {
                   fontSize: '0.85rem',
                   color: '#dc2626'
                 }}>
-                  Cannot import data with errors. Please fix errors and re-upload.
+                  Cannot generate timetable with errors. Please fix errors and re-upload.
                 </div>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* Import Results */}
-        {renderImportResults()}
-
-        {/* Step 4: Generate Timetable */}
-        {importResults && (
-          <div className="card" style={{ marginTop: 16 }}>
-            <div className="card-header">
-              <span className="card-title">Step 4: Generate Timetable</span>
-            </div>
-            <div>
-              <p style={{ color: '#64748b', marginBottom: 12 }}>
-                Generate an optimized timetable using the imported data.
-              </p>
-              
-              <button 
-                className="btn btn-success" 
-                onClick={generateTimetable}
-                disabled={generating}
-              >
-                {generating ? <Loader size={16} className="spinner" /> : <Wand2 size={16} />}
-                {generating ? 'Generating...' : 'Generate Timetable'}
-              </button>
             </div>
           </div>
         )}
