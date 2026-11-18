@@ -7,7 +7,7 @@ export default function SemesterPlanner() {
   const [semesters, setSemesters] = useState([]);
   const [selectedSemester, setSelectedSemester] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [modalType, setModalType] = useState('semester'); // 'semester', 'holiday', 'settings'
+  const [modalType, setModalType] = useState('semester');
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
     name: '',
@@ -34,4 +34,416 @@ export default function SemesterPlanner() {
       allowWeekendClasses: false,
       maxDailyHours: 8
     }
-  });\n  const [holidayForm, setHolidayForm] = useState({\n    name: '',\n    startDate: '',\n    endDate: '',\n    type: 'institutional'\n  });\n\n  useEffect(() => {\n    loadSemesters();\n  }, []);\n\n  const loadSemesters = async () => {\n    try {\n      const response = await api.get('/semesters');\n      setSemesters(response.data);\n      if (response.data.length > 0 && !selectedSemester) {\n        setSelectedSemester(response.data[0]);\n      }\n    } catch (err) {\n      toast.error('Failed to load semesters');\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  const saveSemester = async (e) => {\n    e.preventDefault();\n    try {\n      if (selectedSemester && modalType === 'semester') {\n        await api.put(`/semesters/${selectedSemester._id}`, form);\n        toast.success('Semester updated');\n      } else {\n        await api.post('/semesters', form);\n        toast.success('Semester created');\n      }\n      setShowModal(false);\n      loadSemesters();\n    } catch (err) {\n      toast.error(err.response?.data?.message || 'Failed to save semester');\n    }\n  };\n\n  const addHoliday = async (e) => {\n    e.preventDefault();\n    if (!selectedSemester) return;\n    \n    try {\n      const response = await api.post(`/semesters/${selectedSemester._id}/holidays`, holidayForm);\n      toast.success('Holiday added and impact analyzed');\n      setSelectedSemester(response.data.semester);\n      setShowModal(false);\n      setHolidayForm({ name: '', startDate: '', endDate: '', type: 'institutional' });\n      \n      // Show impact analysis\n      if (response.data.impact) {\n        showImpactAnalysis(response.data.impact);\n      }\n    } catch (err) {\n      toast.error(err.response?.data?.message || 'Failed to add holiday');\n    }\n  };\n\n  const showImpactAnalysis = (impact) => {\n    const message = `Holiday Impact Analysis:\n• ${impact.affectedDays} teaching days affected\n• ${impact.totalLostPeriods} periods need redistribution\n• ${impact.affectedClasses} classes impacted\n\nRedistribution suggestions available.`;\n    \n    if (window.confirm(message + '\\n\\nWould you like to auto-redistribute classes?')) {\n      redistributeClasses('buffer'); // Default strategy\n    }\n  };\n\n  const redistributeClasses = async (strategy) => {\n    if (!selectedSemester) return;\n    \n    try {\n      const response = await api.post(`/semesters/${selectedSemester._id}/redistribute`, {\n        strategy\n      });\n      toast.success('Classes redistributed successfully');\n      console.log('Redistribution results:', response.data.results);\n    } catch (err) {\n      toast.error(err.response?.data?.message || 'Failed to redistribute classes');\n    }\n  };\n\n  const openModal = (type, semester = null) => {\n    setModalType(type);\n    if (type === 'semester' && semester) {\n      setForm({\n        name: semester.name,\n        startDate: semester.startDate?.split('T')[0] || '',\n        endDate: semester.endDate?.split('T')[0] || '',\n        academicCalendar: semester.academicCalendar || form.academicCalendar,\n        bufferSlots: semester.bufferSlots || form.bufferSlots,\n        doublePeriods: semester.doublePeriods || form.doublePeriods,\n        redistributionSettings: semester.redistributionSettings || form.redistributionSettings\n      });\n    }\n    setShowModal(true);\n  };\n\n  const deleteSemester = async (id) => {\n    if (!window.confirm('Delete this semester? This will also delete all related progress data.')) return;\n    \n    try {\n      await api.delete(`/semesters/${id}`);\n      toast.success('Semester deleted');\n      loadSemesters();\n      if (selectedSemester?._id === id) {\n        setSelectedSemester(null);\n      }\n    } catch (err) {\n      toast.error('Failed to delete semester');\n    }\n  };\n\n  const calculateProgress = (semester) => {\n    if (!semester.academicCalendar) return { total: 0, actual: 0, percentage: 0 };\n    \n    const total = semester.academicCalendar.totalTeachingDays || 0;\n    const actual = semester.academicCalendar.actualTeachingDays || 0;\n    const percentage = total > 0 ? Math.round((actual / total) * 100) : 0;\n    \n    return { total, actual, percentage };\n  };\n\n  if (loading) return <div className=\"page\"><div className=\"spinner\" /></div>;\n\n  return (\n    <div className=\"page\">\n      <div className=\"topbar\">\n        <h2>Semester Planner</h2>\n        <button className=\"btn btn-primary\" onClick={() => openModal('semester')}>\n          <Plus size={16} /> New Semester\n        </button>\n      </div>\n\n      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 24, marginTop: 24 }}>\n        {/* Semester List */}\n        <div className=\"card\">\n          <div className=\"card-header\">\n            <span className=\"card-title\">Semesters</span>\n          </div>\n          <div style={{ maxHeight: 400, overflowY: 'auto' }}>\n            {semesters.map(semester => {\n              const progress = calculateProgress(semester);\n              return (\n                <div \n                  key={semester._id}\n                  className={`semester-item ${selectedSemester?._id === semester._id ? 'active' : ''}`}\n                  onClick={() => setSelectedSemester(semester)}\n                  style={{\n                    padding: 12,\n                    borderBottom: '1px solid #e2e8f0',\n                    cursor: 'pointer',\n                    background: selectedSemester?._id === semester._id ? '#f0f9ff' : 'transparent'\n                  }}\n                >\n                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{semester.name}</div>\n                  <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: 8 }}>\n                    {new Date(semester.startDate).toLocaleDateString()} - {new Date(semester.endDate).toLocaleDateString()}\n                  </div>\n                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>\n                    <div className={`badge ${\n                      semester.status === 'active' ? 'badge-green' :\n                      semester.status === 'completed' ? 'badge-blue' : 'badge-secondary'\n                    }`}>\n                      {semester.status}\n                    </div>\n                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>\n                      {progress.actual}/{progress.total} days\n                    </span>\n                  </div>\n                </div>\n              );\n            })}\n            {semesters.length === 0 && (\n              <div className=\"empty-state\" style={{ padding: 20 }}>\n                <Calendar size={32} />\n                <p>No semesters created yet</p>\n              </div>\n            )}\n          </div>\n        </div>\n\n        {/* Semester Details */}\n        <div>\n          {selectedSemester ? (\n            <>\n              {/* Semester Overview */}\n              <div className=\"card\">\n                <div className=\"card-header\">\n                  <span className=\"card-title\">{selectedSemester.name}</span>\n                  <div style={{ display: 'flex', gap: 8 }}>\n                    <button className=\"btn btn-secondary btn-sm\" onClick={() => openModal('settings', selectedSemester)}>\n                      <Settings size={14} /> Settings\n                    </button>\n                    <button className=\"btn btn-secondary btn-sm\" onClick={() => openModal('semester', selectedSemester)}>\n                      <Edit2 size={14} /> Edit\n                    </button>\n                    <button className=\"btn btn-danger btn-sm\" onClick={() => deleteSemester(selectedSemester._id)}>\n                      <Trash2 size={14} />\n                    </button>\n                  </div>\n                </div>\n                \n                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>\n                  <div className=\"stat-card\">\n                    <div className=\"stat-icon blue\"><Calendar size={20} /></div>\n                    <div>\n                      <div className=\"stat-value\">{calculateProgress(selectedSemester).total}</div>\n                      <div className=\"stat-label\">Total Teaching Days</div>\n                    </div>\n                  </div>\n                  <div className=\"stat-card\">\n                    <div className=\"stat-icon green\"><CheckCircle size={20} /></div>\n                    <div>\n                      <div className=\"stat-value\">{calculateProgress(selectedSemester).actual}</div>\n                      <div className=\"stat-label\">Available Days</div>\n                    </div>\n                  </div>\n                  <div className=\"stat-card\">\n                    <div className=\"stat-icon orange\"><AlertTriangle size={20} /></div>\n                    <div>\n                      <div className=\"stat-value\">{selectedSemester.holidays?.length || 0}</div>\n                      <div className=\"stat-label\">Holidays</div>\n                    </div>\n                  </div>\n                  <div className=\"stat-card\">\n                    <div className=\"stat-icon purple\"><BarChart3 size={20} /></div>\n                    <div>\n                      <div className=\"stat-value\">{calculateProgress(selectedSemester).percentage}%</div>\n                      <div className=\"stat-label\">Availability</div>\n                    </div>\n                  </div>\n                </div>\n              </div>\n\n              {/* Holidays Management */}\n              <div className=\"card\" style={{ marginTop: 16 }}>\n                <div className=\"card-header\">\n                  <span className=\"card-title\">Holiday Calendar</span>\n                  <button className=\"btn btn-primary btn-sm\" onClick={() => openModal('holiday')}>\n                    <Plus size={14} /> Add Holiday\n                  </button>\n                </div>\n                \n                {selectedSemester.holidays && selectedSemester.holidays.length > 0 ? (\n                  <div className=\"table-wrap\">\n                    <table>\n                      <thead>\n                        <tr>\n                          <th>Holiday Name</th>\n                          <th>Start Date</th>\n                          <th>End Date</th>\n                          <th>Type</th>\n                          <th>Duration</th>\n                        </tr>\n                      </thead>\n                      <tbody>\n                        {selectedSemester.holidays.map((holiday, index) => {\n                          const start = new Date(holiday.startDate);\n                          const end = new Date(holiday.endDate);\n                          const duration = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;\n                          \n                          return (\n                            <tr key={index}>\n                              <td><strong>{holiday.name}</strong></td>\n                              <td>{start.toLocaleDateString()}</td>\n                              <td>{end.toLocaleDateString()}</td>\n                              <td>\n                                <span className={`badge ${\n                                  holiday.type === 'national' ? 'badge-red' :\n                                  holiday.type === 'regional' ? 'badge-blue' : 'badge-secondary'\n                                }`}>\n                                  {holiday.type}\n                                </span>\n                              </td>\n                              <td>{duration} day{duration > 1 ? 's' : ''}</td>\n                            </tr>\n                          );\n                        })}\n                      </tbody>\n                    </table>\n                  </div>\n                ) : (\n                  <div className=\"empty-state\">\n                    <Calendar size={40} />\n                    <p>No holidays added yet</p>\n                  </div>\n                )}\n              </div>\n\n              {/* Buffer Slots & Double Periods */}\n              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>\n                <div className=\"card\">\n                  <div className=\"card-header\">\n                    <span className=\"card-title\">Buffer Slots</span>\n                    <span className={`badge ${\n                      selectedSemester.bufferSlots?.enabled ? 'badge-green' : 'badge-secondary'\n                    }`}>\n                      {selectedSemester.bufferSlots?.enabled ? 'Enabled' : 'Disabled'}\n                    </span>\n                  </div>\n                  {selectedSemester.bufferSlots?.enabled && (\n                    <div>\n                      <p><strong>Slots per week:</strong> {selectedSemester.bufferSlots.slotsPerWeek}</p>\n                      <p><strong>Preferred days:</strong> {selectedSemester.bufferSlots.preferredDays?.join(', ')}</p>\n                      <p><strong>Preferred periods:</strong> {selectedSemester.bufferSlots.preferredPeriods?.join(', ')}</p>\n                    </div>\n                  )}\n                </div>\n                \n                <div className=\"card\">\n                  <div className=\"card-header\">\n                    <span className=\"card-title\">Double Periods</span>\n                    <span className={`badge ${\n                      selectedSemester.doublePeriods?.enabled ? 'badge-green' : 'badge-secondary'\n                    }`}>\n                      {selectedSemester.doublePeriods?.enabled ? 'Enabled' : 'Disabled'}\n                    </span>\n                  </div>\n                  {selectedSemester.doublePeriods?.enabled && (\n                    <div>\n                      <p><strong>Max per day:</strong> {selectedSemester.doublePeriods.maxPerDay}</p>\n                      <p><strong>Min gap between:</strong> {selectedSemester.doublePeriods.minGapBetween} periods</p>\n                    </div>\n                  )}\n                </div>\n              </div>\n            </>\n          ) : (\n            <div className=\"card\">\n              <div className=\"empty-state\">\n                <Calendar size={60} />\n                <h3>Select a Semester</h3>\n                <p>Choose a semester from the list to view details and manage holidays</p>\n              </div>\n            </div>\n          )}\n        </div>\n      </div>\n\n      {/* Modals */}\n      {showModal && (\n        <div className=\"modal-overlay\" onClick={() => setShowModal(false)}>\n          <div className=\"modal\" onClick={e => e.stopPropagation()} style={{ maxWidth: modalType === 'settings' ? 600 : 480 }}>\n            <div className=\"modal-header\">\n              <span className=\"modal-title\">\n                {modalType === 'semester' ? (selectedSemester ? 'Edit Semester' : 'New Semester') :\n                 modalType === 'holiday' ? 'Add Holiday' : 'Semester Settings'}\n              </span>\n              <button className=\"btn btn-secondary btn-sm\" onClick={() => setShowModal(false)}>\n                ×\n              </button>\n            </div>\n            \n            {modalType === 'semester' && (\n              <form onSubmit={saveSemester}>\n                <div className=\"form-group\">\n                  <label className=\"form-label\">Semester Name *</label>\n                  <input \n                    className=\"form-input\" \n                    value={form.name} \n                    onChange={e => setForm({...form, name: e.target.value})} \n                    placeholder=\"e.g., Fall 2024, Spring 2025\"\n                    required \n                  />\n                </div>\n                <div className=\"form-row\">\n                  <div className=\"form-group\">\n                    <label className=\"form-label\">Start Date *</label>\n                    <input \n                      className=\"form-input\" \n                      type=\"date\" \n                      value={form.startDate} \n                      onChange={e => setForm({...form, startDate: e.target.value})} \n                      required \n                    />\n                  </div>\n                  <div className=\"form-group\">\n                    <label className=\"form-label\">End Date *</label>\n                    <input \n                      className=\"form-input\" \n                      type=\"date\" \n                      value={form.endDate} \n                      onChange={e => setForm({...form, endDate: e.target.value})} \n                      required \n                    />\n                  </div>\n                </div>\n                <div className=\"form-row\">\n                  <div className=\"form-group\">\n                    <label className=\"form-label\">Periods per Day</label>\n                    <input \n                      className=\"form-input\" \n                      type=\"number\" \n                      min=\"4\" \n                      max=\"10\" \n                      value={form.academicCalendar.periodsPerDay} \n                      onChange={e => setForm({\n                        ...form, \n                        academicCalendar: {\n                          ...form.academicCalendar,\n                          periodsPerDay: parseInt(e.target.value)\n                        }\n                      })} \n                    />\n                  </div>\n                  <div className=\"form-group\">\n                    <label className=\"form-label\">Buffer Slots/Week</label>\n                    <input \n                      className=\"form-input\" \n                      type=\"number\" \n                      min=\"0\" \n                      max=\"10\" \n                      value={form.bufferSlots.slotsPerWeek} \n                      onChange={e => setForm({\n                        ...form, \n                        bufferSlots: {\n                          ...form.bufferSlots,\n                          slotsPerWeek: parseInt(e.target.value)\n                        }\n                      })} \n                    />\n                  </div>\n                </div>\n                <button className=\"btn btn-primary\" style={{ width: '100%', justifyContent: 'center' }}>\n                  {selectedSemester ? 'Update Semester' : 'Create Semester'}\n                </button>\n              </form>\n            )}\n            \n            {modalType === 'holiday' && (\n              <form onSubmit={addHoliday}>\n                <div className=\"form-group\">\n                  <label className=\"form-label\">Holiday Name *</label>\n                  <input \n                    className=\"form-input\" \n                    value={holidayForm.name} \n                    onChange={e => setHolidayForm({...holidayForm, name: e.target.value})} \n                    placeholder=\"e.g., Diwali, Christmas, Mid-term Break\"\n                    required \n                  />\n                </div>\n                <div className=\"form-row\">\n                  <div className=\"form-group\">\n                    <label className=\"form-label\">Start Date *</label>\n                    <input \n                      className=\"form-input\" \n                      type=\"date\" \n                      value={holidayForm.startDate} \n                      onChange={e => setHolidayForm({...holidayForm, startDate: e.target.value})} \n                      required \n                    />\n                  </div>\n                  <div className=\"form-group\">\n                    <label className=\"form-label\">End Date *</label>\n                    <input \n                      className=\"form-input\" \n                      type=\"date\" \n                      value={holidayForm.endDate} \n                      onChange={e => setHolidayForm({...holidayForm, endDate: e.target.value})} \n                      required \n                    />\n                  </div>\n                </div>\n                <div className=\"form-group\">\n                  <label className=\"form-label\">Holiday Type</label>\n                  <select \n                    className=\"form-select\" \n                    value={holidayForm.type} \n                    onChange={e => setHolidayForm({...holidayForm, type: e.target.value})}\n                  >\n                    <option value=\"institutional\">Institutional</option>\n                    <option value=\"regional\">Regional</option>\n                    <option value=\"national\">National</option>\n                  </select>\n                </div>\n                <button className=\"btn btn-primary\" style={{ width: '100%', justifyContent: 'center' }}>\n                  Add Holiday & Analyze Impact\n                </button>\n              </form>\n            )}\n          </div>\n        </div>\n      )}\n    </div>\n  );\n}
+  });
+  
+  const [holidayForm, setHolidayForm] = useState({
+    name: '',
+    startDate: '',
+    endDate: '',
+    type: 'institutional'
+  });
+
+  useEffect(() => {
+    loadSemesters();
+  }, []);
+
+  const loadSemesters = async () => {
+    try {
+      const response = await api.get('/semesters');
+      setSemesters(response.data);
+      if (response.data.length > 0 && !selectedSemester) {
+        setSelectedSemester(response.data[0]);
+      }
+    } catch (err) {
+      toast.error('Failed to load semesters');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveSemester = async (e) => {
+    e.preventDefault();
+    try {
+      if (selectedSemester && modalType === 'semester') {
+        await api.put(`/semesters/${selectedSemester._id}`, form);
+        toast.success('Semester updated');
+      } else {
+        await api.post('/semesters', form);
+        toast.success('Semester created');
+      }
+      setShowModal(false);
+      loadSemesters();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save semester');
+    }
+  };
+
+  const addHoliday = async (e) => {
+    e.preventDefault();
+    if (!selectedSemester) return;
+    
+    try {
+      const response = await api.post(`/semesters/${selectedSemester._id}/holidays`, holidayForm);
+      toast.success('Holiday added and impact analyzed');
+      setSelectedSemester(response.data.semester);
+      setShowModal(false);
+      setHolidayForm({ name: '', startDate: '', endDate: '', type: 'institutional' });
+      
+      if (response.data.impact) {
+        showImpactAnalysis(response.data.impact);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to add holiday');
+    }
+  };
+
+  const showImpactAnalysis = (impact) => {
+    const message = `Holiday Impact Analysis:
+• ${impact.affectedDays} teaching days affected
+• ${impact.totalLostPeriods} periods need redistribution
+• ${impact.affectedClasses} classes impacted
+
+Redistribution suggestions available.`;
+    
+    if (window.confirm(message + '\n\nWould you like to auto-redistribute classes?')) {
+      redistributeClasses('buffer');
+    }
+  };
+
+  const redistributeClasses = async (strategy) => {
+    if (!selectedSemester) return;
+    
+    try {
+      const response = await api.post(`/semesters/${selectedSemester._id}/redistribute`, {
+        strategy
+      });
+      toast.success('Classes redistributed successfully');
+      console.log('Redistribution results:', response.data.results);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to redistribute classes');
+    }
+  };
+
+  const openModal = (type, semester = null) => {
+    setModalType(type);
+    if (type === 'semester' && semester) {
+      setForm({
+        name: semester.name,
+        startDate: semester.startDate?.split('T')[0] || '',
+        endDate: semester.endDate?.split('T')[0] || '',
+        academicCalendar: semester.academicCalendar || form.academicCalendar,
+        bufferSlots: semester.bufferSlots || form.bufferSlots,
+        doublePeriods: semester.doublePeriods || form.doublePeriods,
+        redistributionSettings: semester.redistributionSettings || form.redistributionSettings
+      });
+    }
+    setShowModal(true);
+  };
+
+  const deleteSemester = async (id) => {
+    if (!window.confirm('Delete this semester? This will also delete all related progress data.')) return;
+    
+    try {
+      await api.delete(`/semesters/${id}`);
+      toast.success('Semester deleted');
+      loadSemesters();
+      if (selectedSemester?._id === id) {
+        setSelectedSemester(null);
+      }
+    } catch (err) {
+      toast.error('Failed to delete semester');
+    }
+  };
+
+  const calculateProgress = (semester) => {
+    if (!semester.academicCalendar) return { total: 0, actual: 0, percentage: 0 };
+    
+    const total = semester.academicCalendar.totalTeachingDays || 0;
+    const actual = semester.academicCalendar.actualTeachingDays || 0;
+    const percentage = total > 0 ? Math.round((actual / total) * 100) : 0;
+    
+    return { total, actual, percentage };
+  };
+
+  if (loading) return <div className="page"><div className="spinner" /></div>;
+
+  return (
+    <div className="page">
+      <div className="topbar">
+        <h2>Semester Planner</h2>
+        <button className="btn btn-primary" onClick={() => openModal('semester')}>
+          <Plus size={16} /> New Semester
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 24, marginTop: 24 }}>
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Semesters</span>
+          </div>
+          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+            {semesters.map(semester => {
+              const progress = calculateProgress(semester);
+              return (
+                <div 
+                  key={semester._id}
+                  className={`semester-item ${selectedSemester?._id === semester._id ? 'active' : ''}`}
+                  onClick={() => setSelectedSemester(semester)}
+                  style={{
+                    padding: 12,
+                    borderBottom: '1px solid #e2e8f0',
+                    cursor: 'pointer',
+                    background: selectedSemester?._id === semester._id ? '#f0f9ff' : 'transparent'
+                  }}
+                >
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{semester.name}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: 8 }}>
+                    {new Date(semester.startDate).toLocaleDateString()} - {new Date(semester.endDate).toLocaleDateString()}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div className={`badge ${
+                      semester.status === 'active' ? 'badge-green' :
+                      semester.status === 'completed' ? 'badge-blue' : 'badge-secondary'
+                    }`}>
+                      {semester.status}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                      {progress.actual}/{progress.total} days
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            {semesters.length === 0 && (
+              <div className="empty-state" style={{ padding: 20 }}>
+                <Calendar size={32} />
+                <p>No semesters created yet</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div>
+          {selectedSemester ? (
+            <>
+              <div className="card">
+                <div className="card-header">
+                  <span className="card-title">{selectedSemester.name}</span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => openModal('semester', selectedSemester)}>
+                      <Edit2 size={14} /> Edit
+                    </button>
+                    <button className="btn btn-danger btn-sm" onClick={() => deleteSemester(selectedSemester._id)}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                  <div className="stat-card">
+                    <div className="stat-icon blue"><Calendar size={20} /></div>
+                    <div>
+                      <div className="stat-value">{calculateProgress(selectedSemester).total}</div>
+                      <div className="stat-label">Total Teaching Days</div>
+                    </div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-icon green"><CheckCircle size={20} /></div>
+                    <div>
+                      <div className="stat-value">{calculateProgress(selectedSemester).actual}</div>
+                      <div className="stat-label">Available Days</div>
+                    </div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-icon orange"><AlertTriangle size={20} /></div>
+                    <div>
+                      <div className="stat-value">{selectedSemester.holidays?.length || 0}</div>
+                      <div className="stat-label">Holidays</div>
+                    </div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-icon purple"><BarChart3 size={20} /></div>
+                    <div>
+                      <div className="stat-value">{calculateProgress(selectedSemester).percentage}%</div>
+                      <div className="stat-label">Availability</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="card" style={{ marginTop: 16 }}>
+                <div className="card-header">
+                  <span className="card-title">Holiday Calendar</span>
+                  <button className="btn btn-primary btn-sm" onClick={() => openModal('holiday')}>
+                    <Plus size={14} /> Add Holiday
+                  </button>
+                </div>
+                
+                {selectedSemester.holidays && selectedSemester.holidays.length > 0 ? (
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Holiday Name</th>
+                          <th>Start Date</th>
+                          <th>End Date</th>
+                          <th>Type</th>
+                          <th>Duration</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedSemester.holidays.map((holiday, index) => {
+                          const start = new Date(holiday.startDate);
+                          const end = new Date(holiday.endDate);
+                          const duration = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                          
+                          return (
+                            <tr key={index}>
+                              <td><strong>{holiday.name}</strong></td>
+                              <td>{start.toLocaleDateString()}</td>
+                              <td>{end.toLocaleDateString()}</td>
+                              <td>
+                                <span className={`badge ${
+                                  holiday.type === 'national' ? 'badge-red' :
+                                  holiday.type === 'regional' ? 'badge-blue' : 'badge-secondary'
+                                }`}>
+                                  {holiday.type}
+                                </span>
+                              </td>
+                              <td>{duration} day{duration > 1 ? 's' : ''}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <Calendar size={40} />
+                    <p>No holidays added yet</p>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="card">
+              <div className="empty-state">
+                <Calendar size={60} />
+                <h3>Select a Semester</h3>
+                <p>Choose a semester from the list to view details and manage holidays</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">
+                {modalType === 'semester' ? (selectedSemester ? 'Edit Semester' : 'New Semester') :
+                 modalType === 'holiday' ? 'Add Holiday' : 'Semester Settings'}
+              </span>
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowModal(false)}>
+                ×
+              </button>
+            </div>
+            
+            {modalType === 'semester' && (
+              <form onSubmit={saveSemester}>
+                <div className="form-group">
+                  <label className="form-label">Semester Name *</label>
+                  <input 
+                    className="form-input" 
+                    value={form.name} 
+                    onChange={e => setForm({...form, name: e.target.value})} 
+                    placeholder="e.g., Fall 2024, Spring 2025"
+                    required 
+                  />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Start Date *</label>
+                    <input 
+                      className="form-input" 
+                      type="date" 
+                      value={form.startDate} 
+                      onChange={e => setForm({...form, startDate: e.target.value})} 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">End Date *</label>
+                    <input 
+                      className="form-input" 
+                      type="date" 
+                      value={form.endDate} 
+                      onChange={e => setForm({...form, endDate: e.target.value})} 
+                      required 
+                    />
+                  </div>
+                </div>
+                <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+                  {selectedSemester ? 'Update Semester' : 'Create Semester'}
+                </button>
+              </form>
+            )}
+            
+            {modalType === 'holiday' && (
+              <form onSubmit={addHoliday}>
+                <div className="form-group">
+                  <label className="form-label">Holiday Name *</label>
+                  <input 
+                    className="form-input" 
+                    value={holidayForm.name} 
+                    onChange={e => setHolidayForm({...holidayForm, name: e.target.value})} 
+                    placeholder="e.g., Diwali, Christmas, Mid-term Break"
+                    required 
+                  />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Start Date *</label>
+                    <input 
+                      className="form-input" 
+                      type="date" 
+                      value={holidayForm.startDate} 
+                      onChange={e => setHolidayForm({...holidayForm, startDate: e.target.value})} 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">End Date *</label>
+                    <input 
+                      className="form-input" 
+                      type="date" 
+                      value={holidayForm.endDate} 
+                      onChange={e => setHolidayForm({...holidayForm, endDate: e.target.value})} 
+                      required 
+                    />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Holiday Type</label>
+                  <select 
+                    className="form-select" 
+                    value={holidayForm.type} 
+                    onChange={e => setHolidayForm({...holidayForm, type: e.target.value})}
+                  >
+                    <option value="institutional">Institutional</option>
+                    <option value="regional">Regional</option>
+                    <option value="national">National</option>
+                  </select>
+                </div>
+                <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+                  Add Holiday & Analyze Impact
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
