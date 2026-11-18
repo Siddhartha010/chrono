@@ -251,7 +251,7 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">Recent Substitute Assignments</span>
-            <button className="btn btn-primary btn-sm" onClick={() => navigate('/substitutes')}>
+            <button className="btn btn-primary btn-sm" onClick={() => navigate('/substitute-manager')}>
               <UserCheck size={14} /> Manage
             </button>
           </div>
@@ -299,7 +299,7 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">Recent Teacher Unavailabilities</span>
-            <button className="btn btn-primary btn-sm" onClick={() => navigate('/unavailability')}>
+            <button className="btn btn-primary btn-sm" onClick={() => navigate('/unavailability-manager')}>
               <UserX size={14} /> Manage
             </button>
           </div>
