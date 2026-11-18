@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const session = require('express-session');
 require('dotenv').config();
 
 const app = express();
@@ -9,6 +10,18 @@ app.use(cors({
   origin: (process.env.CLIENT_URL || '').replace(/\/$/, '') || '*',
   credentials: true
 }));
+
+// Session middleware for storing parsed Excel data
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'chronogen-excel-session',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: false, // Set to true in production with HTTPS
+    maxAge: 30 * 60 * 1000 // 30 minutes
+  }
+}));
+
 app.use(express.json());
 
 // Routes
@@ -24,6 +37,7 @@ app.use('/api/schedules', require('./routes/schedules'));
 app.use('/api/substitutes', require('./routes/substitutes'));
 app.use('/api/unavailability', require('./routes/unavailability'));
 app.use('/api/semesters', require('./routes/semesters'));
+app.use('/api/excel', require('./routes/excel'));
 
 const PORT = process.env.PORT || 5000;
 

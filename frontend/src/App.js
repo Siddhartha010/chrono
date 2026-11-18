@@ -19,6 +19,7 @@ import UnavailabilityManager from './pages/UnavailabilityManager';
 import SubstituteManager from './pages/SubstituteManager';
 import SemesterPlanner from './pages/SemesterPlanner';
 import WeeklyTimetableView from './pages/WeeklyTimetableView';
+import ExcelImport from './pages/ExcelImport';
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="unavailability-manager" element={<UnavailabilityManager />} />
             <Route path="semester-planner" element={<SemesterPlanner />} />
             <Route path="weekly-timetable/:semesterId/:weekNumber" element={<WeeklyTimetableView />} />
+            <Route path="excel-import" element={<ExcelImport />} />
           </Route>
         </Routes>
       </BrowserRouter>
