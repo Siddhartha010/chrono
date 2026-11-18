@@ -224,10 +224,12 @@ export default function Dashboard() {
                           <button 
                             className="btn btn-secondary btn-sm" 
                             onClick={() => {
-                              if (tt.type === 'regular' || tt.type === 'updated') {
-                                // For updated timetables, use the original ID
-                                const timetableId = tt.type === 'updated' ? tt._id.replace('_updated', '') : tt._id;
-                                navigate(`/timetable/${timetableId}`);
+                              if (tt.type === 'updated') {
+                                // For updated timetables, navigate to a special view that shows substitutes
+                                const timetableId = tt._id.replace('_updated', '');
+                                navigate(`/timetable/${timetableId}?view=substitutes`);
+                              } else if (tt.type === 'regular') {
+                                navigate(`/timetable/${tt._id}`);
                               } else {
                                 navigate('/schedules');
                               }

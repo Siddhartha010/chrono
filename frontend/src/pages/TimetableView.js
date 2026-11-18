@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Download, Users, Search, Trash2, RefreshCw, Edit2, Check, X, AlertTriangle, Save } from 'lucide-react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { Download, Users, Search, Trash2, RefreshCw, Edit2, Check, X, AlertTriangle, Save, UserCheck } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
@@ -10,7 +10,10 @@ import * as XLSX from 'xlsx';
 export default function TimetableView() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isSubstitutesView = searchParams.get('view') === 'substitutes';
   const [tt, setTt] = useState(null);
+  const [substitutes, setSubstitutes] = useState([]);
   const [timeslotConfig, setTimeslotConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filterClass, setFilterClass] = useState('');
@@ -25,21 +28,77 @@ export default function TimetableView() {
   const [conflictWarnings, setConflictWarnings] = useState([]);
 
   useEffect(() => {
-    Promise.all([
-      api.get(`/timetable/${id}`),
-      api.get('/timeslots')
-    ]).then(([ttRes, tsRes]) => {
-      setTt(ttRes.data);
-      setNewName(ttRes.data.name || 'Generated Timetable');
-      if (tsRes.data.length > 0) setTimeslotConfig(tsRes.data[0]);
-      setLoading(false);
-    }).catch(() => { toast.error('Failed to load'); setLoading(false); });
-  }, [id]);
+    const fetchData = async () => {
+      try {
+        if (isSubstitutesView) {
+          // Fetch timetable with substitutes applied
+          const [ttRes, tsRes] = await Promise.all([
+            api.get(`/substitutes/timetable/${id}`),
+            api.get('/timeslots')
+          ]);
+          setTt(ttRes.data);
+          setSubstitutes(ttRes.data.substitutes || []);
+          setNewName(ttRes.data.name || 'Generated Timetable');
+          if (tsRes.data.length > 0) setTimeslotConfig(tsRes.data[0]);
+        } else {
+          // Fetch regular timetable
+          const [ttRes, tsRes] = await Promise.all([
+            api.get(`/timetable/${id}`),
+            api.get('/timeslots')
+          ]);
+          setTt(ttRes.data);
+          setNewName(ttRes.data.name || 'Generated Timetable');
+          if (tsRes.data.length > 0) setTimeslotConfig(tsRes.data[0]);
+        }
+        setLoading(false);
+      } catch (err) {
+        toast.error('Failed to load');
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [id, isSubstitutesView]);
 
   if (loading) return <div className="page"><div className="spinner" /></div>;
   if (!tt) return <div className="page"><p>Timetable not found</p></div>;
 
-  const entries = tt.entries.filter(e => {
+  // Apply substitutes to entries if in substitutes view
+  const getDisplayEntries = () => {
+    if (!isSubstitutesView || !substitutes.length) return tt.entries;
+    
+    return tt.entries.map(entry => {
+      const substitute = substitutes.find(sub => 
+        sub.originalEntry.day === entry.day &&
+        sub.originalEntry.period === entry.period &&
+        sub.originalEntry.class === entry.class?._id &&
+        sub.status === 'approved'
+      );
+      
+      if (substitute) {
+        if (substitute.isLibrary) {
+          return {
+            ...entry,
+            subject: { name: 'Library', _id: 'library' },
+            teacher: { name: 'Library Period', _id: 'library' },
+            isSubstitute: true
+          };
+        } else if (substitute.substituteTeacher) {
+          return {
+            ...entry,
+            teacher: substitute.substituteTeacher,
+            isSubstitute: true
+          };
+        }
+      }
+      
+      return entry;
+    });
+  };
+  
+  const displayEntries = getDisplayEntries();
+
+  const entries = displayEntries.filter(e => {
     if (filterClass && e.class?._id !== filterClass) return false;
     if (filterTeacher && e.teacher?._id !== filterTeacher) return false;
     if (filterSubject && e.subject?._id !== filterSubject) return false;
@@ -48,11 +107,11 @@ export default function TimetableView() {
 
   // Day order
   const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const days = [...new Set(tt.entries.map(e => e.day))].sort((a, b) => DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b));
-  const periods = [...new Set(tt.entries.map(e => e.period))].sort((a, b) => a - b);
-  const classes = [...new Map(tt.entries.filter(e => e.class).map(e => [e.class._id, e.class])).values()];
-  const teachers = [...new Map(tt.entries.filter(e => e.teacher).map(e => [e.teacher._id, e.teacher])).values()];
-  const subjects = [...new Map(tt.entries.filter(e => e.subject).map(e => [e.subject._id, e.subject])).values()];
+  const days = [...new Set(displayEntries.map(e => e.day))].sort((a, b) => DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b));
+  const periods = [...new Set(displayEntries.map(e => e.period))].sort((a, b) => a - b);
+  const classes = [...new Map(displayEntries.filter(e => e.class).map(e => [e.class._id, e.class])).values()];
+  const teachers = [...new Map(displayEntries.filter(e => e.teacher).map(e => [e.teacher._id, e.teacher])).values()];
+  const subjects = [...new Map(displayEntries.filter(e => e.subject).map(e => [e.subject._id, e.subject])).values()];
 
   // Map period number -> time label from timeslot config
   const periodLabel = (p) => {
@@ -326,7 +385,21 @@ export default function TimetableView() {
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h2 style={{ margin: 0 }}>{tt.name || 'Generated Timetable'}</h2>
+                <h2 style={{ margin: 0 }}>
+                  {tt.name || 'Generated Timetable'}
+                  {isSubstitutesView && (
+                    <span style={{ 
+                      fontSize: '0.8rem', 
+                      color: '#7c3aed', 
+                      marginLeft: 8,
+                      background: '#ede9fe',
+                      padding: '2px 8px',
+                      borderRadius: '12px'
+                    }}>
+                      with substitutes
+                    </span>
+                  )}
+                </h2>
                 <button className="btn btn-secondary btn-sm" onClick={() => setEditingName(true)}>
                   <Edit2 size={14} />
                 </button>
@@ -476,11 +549,24 @@ export default function TimetableView() {
                             style={{
                               cursor: editMode ? 'grab' : 'default',
                               opacity: draggedEntry?._id === cell._id ? 0.5 : 1,
-                              background: pendingChanges.some(c => c.entryId === cell._id) ? '#dcfce7' : 'transparent'
+                              background: cell.isSubstitute ? '#f3e8ff' : 
+                                         pendingChanges.some(c => c.entryId === cell._id) ? '#dcfce7' : 'transparent'
                             }}
                           >
                             <div className="subject">{cell.subject?.name || '-'}</div>
-                            <div className="teacher">{cell.teacher?.name || '-'}</div>
+                            <div className="teacher">
+                              {cell.teacher?.name || '-'}
+                              {cell.isSubstitute && (
+                                <span style={{ 
+                                  fontSize: '0.6rem', 
+                                  color: '#7c3aed', 
+                                  fontWeight: 600, 
+                                  marginLeft: 4 
+                                }}>
+                                  (SUB)
+                                </span>
+                              )}
+                            </div>
                             <div className="room">{cell.classroom?.name || ''}{cell.class?.name ? ` · ${cell.class.name}` : ''}</div>
                             {pendingChanges.some(c => c.entryId === cell._id) && (
                               <div style={{ 
