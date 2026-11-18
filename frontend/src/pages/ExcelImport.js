@@ -20,7 +20,20 @@ export default function ExcelImport() {
 
   const downloadTemplate = async () => {
     try {
-      toast.loading('Generating template...', { id: 'download' });
+      toast.loading('Waking up backend and generating template...', { id: 'download' });
+      
+      // Wake up Render backend first
+      const baseURL = api.defaults.baseURL.replace('/api', '');
+      
+      // Multi-step wake up
+      await fetch(baseURL);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await fetch(`${baseURL}/health`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await fetch(`${baseURL}/api/health`);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      toast.loading('Backend is awake, downloading template...', { id: 'download' });
       
       const response = await api.get('/excel/template', { 
         responseType: 'blob',
@@ -63,9 +76,11 @@ export default function ExcelImport() {
       } else if (error.response?.status === 500) {
         toast.error('Server error generating template', { id: 'download' });
       } else if (error.code === 'ECONNABORTED') {
-        toast.error('Download timeout - please try again', { id: 'download' });
+        toast.error('Download timeout - backend may be sleeping. Try the SystemDebug wake-up button.', { id: 'download' });
+      } else if (error.response?.status === 404) {
+        toast.error('Backend is sleeping. Use the SystemDebug wake-up button first.', { id: 'download' });
       } else {
-        toast.error('Failed to download template', { id: 'download' });
+        toast.error('Failed to download template. Try SystemDebug wake-up first.', { id: 'download' });
       }
     }
   };
@@ -335,6 +350,18 @@ export default function ExcelImport() {
       </div>
 
       <div style={{ marginTop: 24, maxWidth: 1000 }}>
+        <div style={{ 
+          background: '#fef3c7', 
+          border: '1px solid #f59e0b', 
+          borderRadius: 8, 
+          padding: 12, 
+          marginBottom: 16,
+          fontSize: '0.9rem'
+        }}>
+          <strong>⚠️ Render Backend Notice:</strong> If downloads fail with 404 errors, the backend may be sleeping. 
+          Use the SystemDebug "Wake Up Backend" button first, then try downloading.
+        </div>
+        
         <SystemDebug />
         
         {/* Step 1: Download Template */}
