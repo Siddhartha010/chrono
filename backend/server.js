@@ -7,8 +7,16 @@ require('dotenv').config();
 const app = express();
 
 app.use(cors({
-  origin: (process.env.CLIENT_URL || '').replace(/\/$/, '') || '*',
-  credentials: true
+  origin: [
+    process.env.CLIENT_URL?.replace(/\/$/, ''),
+    'http://localhost:3000',
+    'https://chrono-siddhartha010.vercel.app',
+    /\.vercel\.app$/,
+    /\.netlify\.app$/
+  ].filter(Boolean),
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Session middleware for storing parsed Excel data
