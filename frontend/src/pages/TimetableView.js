@@ -67,15 +67,34 @@ export default function TimetableView() {
   const getDisplayEntries = () => {
     if (!isSubstitutesView || !substitutes.length) return tt.entries;
     
+    console.log('Applying substitutes:', substitutes);
+    console.log('Original entries:', tt.entries);
+    
     return tt.entries.map(entry => {
-      const substitute = substitutes.find(sub => 
-        sub.originalEntry.day === entry.day &&
-        sub.originalEntry.period === entry.period &&
-        sub.originalEntry.class === entry.class?._id &&
-        sub.status === 'approved'
-      );
+      console.log('Checking entry:', {
+        day: entry.day,
+        period: entry.period,
+        class: entry.class?._id,
+        teacher: entry.teacher?.name
+      });
+      
+      const substitute = substitutes.find(sub => {
+        console.log('Comparing with substitute:', {
+          originalDay: sub.originalEntry?.day,
+          originalPeriod: sub.originalEntry?.period,
+          originalClass: sub.originalEntry?.class,
+          status: sub.status,
+          substituteTeacher: sub.substituteTeacher?.name
+        });
+        
+        return sub.originalEntry?.day === entry.day &&
+               sub.originalEntry?.period === entry.period &&
+               sub.originalEntry?.class === entry.class?._id &&
+               sub.status === 'approved';
+      });
       
       if (substitute) {
+        console.log('Found substitute match:', substitute);
         if (substitute.isLibrary) {
           return {
             ...entry,
