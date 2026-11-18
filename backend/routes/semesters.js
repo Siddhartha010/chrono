@@ -1,10 +1,14 @@
 const express = require('express');
 const Semester = require('../models/Semester');
 const SyllabusProgress = require('../models/SyllabusProgress');
+const WeeklyTimetable = require('../models/WeeklyTimetable');
 const Timetable = require('../models/Timetable');
 const Subject = require('../models/Subject');
 const Class = require('../models/Class');
 const Teacher = require('../models/Teacher');
+const Classroom = require('../models/Classroom');
+const Timeslot = require('../models/Timeslot');
+const SemesterTimetableGenerator = require('../utils/semesterTimetableGenerator');
 const auth = require('../middleware/auth');
 const router = express.Router();
 
@@ -296,11 +300,115 @@ router.get('/:id/progress', auth, async (req, res) => {
   }
 });
 
+// Generate semester timetable with weekly scheduling
+router.post('/:id/generate-timetable', auth, async (req, res) => {
+  try {
+    const semester = await Semester.findOne({ _id: req.params.id, createdBy: req.user.id });
+    if (!semester) return res.status(404).json({ message: 'Semester not found' });
+
+    // Get all required data
+    const [classes, teachers, subjects, classrooms, timeslots] = await Promise.all([
+      Class.find({ createdBy: req.user.id }).populate('subjects.subject subjects.teacher'),
+      Teacher.find({ createdBy: req.user.id }),
+      Subject.find({ createdBy: req.user.id }),
+      Classroom.find({ createdBy: req.user.id }),
+      Timeslot.find({ createdBy: req.user.id })
+    ]);
+
+    if (!timeslots.length) {
+      return res.status(400).json({ message: 'No timeslot configuration found' });
+    }
+
+    // Initialize semester timetable generator
+    const generator = new SemesterTimetableGenerator(
+      semester, classes, teachers, subjects, classrooms, timeslots
+    );
+
+    // Generate complete semester timetable
+    const result = await generator.generateSemesterTimetable();
+
+    // Update semester status
+    semester.status = 'active';
+    await semester.save();
+
+    res.json({
+      message: 'Semester timetable generated successfully',
+      semester,
+      ...result
+    });
+  } catch (err) {
+    console.error('Semester timetable generation error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get weekly timetables for a semester
+router.get('/:id/weekly-timetables', auth, async (req, res) => {
+  try {
+    const weeklyTimetables = await WeeklyTimetable.find({ 
+      semester: req.params.id,
+      createdBy: req.user.id 
+    })
+    .populate('entries.class entries.subject entries.teacher entries.classroom')
+    .sort('weekNumber');
+    
+    res.json(weeklyTimetables);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get specific week timetable
+router.get('/:id/week/:weekNumber', auth, async (req, res) => {
+  try {
+    const weeklyTimetable = await WeeklyTimetable.findOne({
+      semester: req.params.id,
+      weekNumber: req.params.weekNumber,
+      createdBy: req.user.id
+    })
+    .populate('entries.class entries.subject entries.teacher entries.classroom');
+    
+    if (!weeklyTimetable) {
+      return res.status(404).json({ message: 'Weekly timetable not found' });
+    }
+    
+    res.json(weeklyTimetable);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Update week status (scheduled -> in_progress -> completed)
+router.put('/:id/week/:weekNumber/status', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    
+    const weeklyTimetable = await WeeklyTimetable.findOneAndUpdate(
+      {
+        semester: req.params.id,
+        weekNumber: req.params.weekNumber,
+        createdBy: req.user.id
+      },
+      { status },
+      { new: true }
+    );
+    
+    if (!weeklyTimetable) {
+      return res.status(404).json({ message: 'Weekly timetable not found' });
+    }
+    
+    res.json(weeklyTimetable);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // Delete semester
 router.delete('/:id', auth, async (req, res) => {
   try {
     await Semester.findOneAndDelete({ _id: req.params.id, createdBy: req.user.id });
     await SyllabusProgress.deleteMany({ semester: req.params.id, createdBy: req.user.id });
+    await WeeklyTimetable.deleteMany({ semester: req.params.id, createdBy: req.user.id });
     res.json({ message: 'Semester deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });

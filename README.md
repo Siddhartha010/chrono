@@ -1,6 +1,6 @@
 # ChronoGen — AI-Powered Timetable Generator
 
-A full-stack web application that uses a **Genetic Algorithm** to generate optimized, conflict-free school/college timetables.
+A full-stack web application that uses a **Genetic Algorithm** to generate optimized, conflict-free school/college timetables with advanced semester planning and holiday management.
 
 ## Problem Statement
 Traditional timetable scheduling in educational institutions is a complex, time-consuming, and error-prone manual process. It involves balancing numerous constraints, such as teacher availability, classroom capacity, subject hours, and preventing overlaps (clashes). As the number of classes and teachers grows, the possible combinations become astronomical, making it nearly impossible for a human to find an optimal, conflict-free solution.
