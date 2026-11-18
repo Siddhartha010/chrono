@@ -8,6 +8,7 @@ import api from '../api/axios';
 import toast from 'react-hot-toast';
 import SystemDebug from '../components/SystemDebug';
 import ExcelTest from '../components/ExcelTest';
+import DeploymentCheck from '../components/DeploymentCheck';
 
 export default function ExcelImport() {
   const navigate = useNavigate();
@@ -23,10 +24,21 @@ export default function ExcelImport() {
     try {
       toast.loading('Generating template...', { id: 'download' });
       
-      const response = await api.get('/excel/template', { 
-        responseType: 'blob',
-        timeout: 30000
-      });
+      let response;
+      try {
+        // Try original route first
+        response = await api.get('/excel/template', { 
+          responseType: 'blob',
+          timeout: 30000
+        });
+      } catch (originalError) {
+        console.log('Original route failed, trying backup via auth:', originalError.message);
+        // Try backup route via auth
+        response = await api.get('/auth/excel-template', { 
+          responseType: 'blob',
+          timeout: 30000
+        });
+      }
       
       console.log('Response received:', response.headers['content-type']);
       
@@ -326,6 +338,7 @@ export default function ExcelImport() {
       </div>
 
       <div style={{ marginTop: 24, maxWidth: 1000 }}>
+        <DeploymentCheck />
         <ExcelTest />
         <SystemDebug />
         

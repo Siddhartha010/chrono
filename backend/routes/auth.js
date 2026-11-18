@@ -32,4 +32,42 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// TEMPORARY: Excel routes added here to ensure deployment
+router.get('/excel-test', (req, res) => {
+  console.log('Excel test route called via auth');
+  res.json({ message: 'Excel route is working via auth', timestamp: new Date().toISOString() });
+});
+
+router.get('/excel-template', (req, res) => {
+  console.log('Excel template route called via auth');
+  try {
+    const simpleCSV = `Class Name,Section,Strength\nBTech CSE,A,60\nBTech CSE,B,58\nBCS,A,45`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="template.csv"');
+    res.send(simpleCSV);
+    console.log('CSV sent successfully via auth');
+  } catch (error) {
+    console.error('Template error via auth:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/excel-upload', (req, res) => {
+  console.log('Excel upload route called via auth');
+  res.json({
+    success: true,
+    message: 'Upload route working via auth',
+    data: {
+      classes: [{ name: 'Test Class', section: 'A', strength: 30 }],
+      subjects: [{ name: 'Test Subject', code: 'TS101', hoursPerWeek: 3 }],
+      teachers: [{ name: 'Test Teacher', email: 'test@test.com' }],
+      classrooms: [{ name: 'Test Room', capacity: 30 }],
+      timeSlots: { days: ['Monday'], periods: [{ periodNumber: 1, startTime: '09:00', endTime: '10:00' }] },
+      assignments: [{ className: 'Test Class', section: 'A', subjectName: 'Test Subject', teacherName: 'Test Teacher' }],
+      errors: [],
+      warnings: ['This is a test response via auth']
+    }
+  });
+});
+
 module.exports = router;
