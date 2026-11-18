@@ -1,7 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const session = require('express-session');
 require('dotenv').config();
 
 const app = express();
@@ -17,17 +16,6 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-// Session middleware for storing parsed Excel data
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'chronogen-excel-session',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { 
-    secure: false, // Set to true in production with HTTPS
-    maxAge: 30 * 60 * 1000 // 30 minutes
-  }
 }));
 
 app.use(express.json());
