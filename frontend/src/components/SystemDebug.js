@@ -16,14 +16,50 @@ export default function SystemDebug() {
     setResults([]);
 
     // Test 1: Basic API connectivity
+    addResult('API Base URL', 'info', `Testing: ${api.defaults.baseURL}`);
+    
+    // Test 1a: Try to wake up Render backend
     try {
-      addResult('API Base URL', 'info', `Testing: ${api.defaults.baseURL}`);
+      addResult('Wake Up Backend', 'info', 'Attempting to wake up Render backend...');
+      const baseURL = api.defaults.baseURL.replace('/api', '');
+      const wakeResponse = await fetch(baseURL, { method: 'GET' });
+      if (wakeResponse.ok) {
+        const data = await wakeResponse.json();
+        addResult('Wake Up Backend', 'success', 'Backend is awake', data);
+      } else {
+        addResult('Wake Up Backend', 'warning', `Backend responded with ${wakeResponse.status}`);
+      }
+    } catch (error) {
+      addResult('Wake Up Backend', 'warning', 'Could not wake backend', error.message);
+    }
+
+    // Wait a moment for backend to fully wake up
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Test 1b: Health check
+    try {
       const response = await api.get('/health');
       addResult('Health Check', 'success', 'Backend is accessible', response.data);
     } catch (error) {
-      addResult('Health Check', 'error', 'Backend not accessible', error.message);
-      setTesting(false);
-      return;
+      addResult('Health Check', 'error', 'Backend not accessible', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText
+      });
+      
+      // Try alternative health check
+      try {
+        const baseURL = api.defaults.baseURL.replace('/api', '');
+        const altResponse = await fetch(`${baseURL}/health`);
+        if (altResponse.ok) {
+          const data = await altResponse.json();
+          addResult('Alternative Health Check', 'success', 'Backend accessible via direct route', data);
+        }
+      } catch (altError) {
+        addResult('Alternative Health Check', 'error', 'All health checks failed');
+        setTesting(false);
+        return;
+      }
     }
 
     // Test 2: Authentication
@@ -100,6 +136,12 @@ export default function SystemDebug() {
     try {
       // Test direct fetch without axios
       const baseURL = api.defaults.baseURL.replace('/api', '');
+      
+      // First wake up the backend
+      addResult('Direct Wake Up', 'info', 'Waking up backend for direct download...');
+      await fetch(baseURL);
+      await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+      
       const url = `${baseURL}/api/excel/template`;
       
       addResult('Direct Fetch', 'info', `Testing direct fetch: ${url}`);
@@ -111,6 +153,8 @@ export default function SystemDebug() {
           'Accept': 'text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,*/*'
         }
       });
+
+      addResult('Direct Response', 'info', `Response: ${response.status} ${response.statusText}`);
 
       if (response.ok) {
         const blob = await response.blob();
@@ -128,7 +172,8 @@ export default function SystemDebug() {
         
         toast.success('Direct download successful!');
       } else {
-        addResult('Direct Fetch', 'error', `Direct fetch failed: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        addResult('Direct Fetch', 'error', `Direct fetch failed: ${response.status} ${response.statusText}`, errorText);
       }
     } catch (error) {
       addResult('Direct Fetch', 'error', 'Direct fetch error', error.message);
@@ -163,7 +208,7 @@ export default function SystemDebug() {
       </div>
       
       <div style={{ padding: 16 }}>
-        <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
+        <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button 
             className="btn btn-primary" 
             onClick={runSystemTests}
@@ -177,6 +222,28 @@ export default function SystemDebug() {
             onClick={testDirectDownload}
           >
             <Download size={16} /> Test Direct Download
+          </button>
+          
+          <button 
+            className="btn btn-success" 
+            onClick={async () => {
+              try {
+                const baseURL = api.defaults.baseURL.replace('/api', '');
+                addResult('Wake Up', 'info', 'Waking up Render backend...');
+                const response = await fetch(baseURL);
+                if (response.ok) {
+                  const data = await response.json();
+                  addResult('Wake Up', 'success', 'Backend is awake!', data);
+                  toast.success('Backend is now awake!');
+                } else {
+                  addResult('Wake Up', 'warning', `Backend responded with ${response.status}`);
+                }
+              } catch (error) {
+                addResult('Wake Up', 'error', 'Wake up failed', error.message);
+              }
+            }}
+          >
+            ⚡ Wake Up Backend
           </button>
         </div>
 
