@@ -23,6 +23,7 @@ app.use('/api/export', require('./routes/export'));
 app.use('/api/schedules', require('./routes/schedules'));
 app.use('/api/substitutes', require('./routes/substitutes'));
 app.use('/api/unavailability', require('./routes/unavailability'));
+app.use('/api/semesters', require('./routes/semesters'));
 
 const PORT = process.env.PORT || 5000;
 
