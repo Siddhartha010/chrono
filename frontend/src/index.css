@@ -568,3 +568,19 @@ tbody tr:hover { background: #f8fafc; }
 }
 
 .generating-overlay p { color: #64748b; font-size: 0.875rem; }
+
+/* Conflict Notification Animation */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.conflict-notification {
+  animation: slideInRight 0.3s ease-out;
+}

@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import ConflictNotification from '../components/ConflictNotification';
 
 export default function TimetableView() {
   const { id } = useParams();
@@ -26,6 +27,8 @@ export default function TimetableView() {
   const [editMode, setEditMode] = useState(false);
   const [pendingChanges, setPendingChanges] = useState([]);
   const [conflictWarnings, setConflictWarnings] = useState([]);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [pendingDrop, setPendingDrop] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -347,17 +350,16 @@ export default function TimetableView() {
     const warnings = checkConflicts(draggedEntry, targetDay, targetPeriod);
     
     if (warnings.length > 0) {
-      const proceed = window.confirm(
-        `Warning: This move will cause conflicts:\n\n${warnings.map(w => `• ${w.message}`).join('\n')}\n\nDo you want to proceed anyway?`
-      );
-      if (!proceed) {
-        setDraggedEntry(null);
-        setDragOverCell(null);
-        setConflictWarnings([]);
-        return;
-      }
+      setPendingDrop({ targetDay, targetPeriod, warnings });
+      setShowConflictDialog(true);
+      return;
     }
     
+    // No conflicts, proceed with the move
+    performMove(targetDay, targetPeriod);
+  };
+
+  const performMove = (targetDay, targetPeriod) => {
     // Update the entry
     const updatedEntries = tt.entries.map(entry => {
       if (entry._id === draggedEntry._id) {
@@ -394,6 +396,22 @@ export default function TimetableView() {
     toast.success('Entry moved. Click Save Changes to apply.');
   };
 
+  const handleConflictProceed = () => {
+    if (pendingDrop) {
+      performMove(pendingDrop.targetDay, pendingDrop.targetPeriod);
+    }
+    setShowConflictDialog(false);
+    setPendingDrop(null);
+  };
+
+  const handleConflictCancel = () => {
+    setDraggedEntry(null);
+    setDragOverCell(null);
+    setConflictWarnings([]);
+    setShowConflictDialog(false);
+    setPendingDrop(null);
+  };
+
   const saveChanges = async () => {
     if (pendingChanges.length === 0) {
       toast.error('No changes to save');
@@ -426,6 +444,11 @@ export default function TimetableView() {
 
   return (
     <div className="page">
+      <ConflictNotification 
+        conflicts={showConflictDialog ? pendingDrop?.warnings : null}
+        onProceed={handleConflictProceed}
+        onCancel={handleConflictCancel}
+      />
       <div className="topbar">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
