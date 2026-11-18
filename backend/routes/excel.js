@@ -205,7 +205,7 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
     for (const r of sheetRows('Teachers')) {
       if (!r['Teacher Name']) continue;
       const subjectsRaw = r['Subjects'] || r['Subject Preferences'] || '';
-      result.teachers.push({ name: String(r['Teacher Name']), email: String(r['Email'] || ''), subjects: String(subjectsRaw).split(',').map(s => s.trim()).filter(Boolean), maxHoursPerDay: Number(r['Max Hours Per Day']) || 6, maxHoursPerWeek: Number(r['Max Hours Per Week']) || 24 });
+      result.teachers.push({ name: String(r['Teacher Name']), email: String(r['Email'] || ''), subjects: String(subjectsRaw).split(',').map(s => s.trim()).filter(Boolean), maxHoursPerDay: Number(r['Max Hours Per Day']) || 6, maxHoursPerWeek: Number(r['Max Hours Per Week']) || 24, course: String(r['Course'] || 'General') });
     }
 
     // Parse Classrooms
@@ -381,6 +381,7 @@ router.post('/generate', auth, async (req, res) => {
         name: s.name, code: s.code,
         hoursPerWeek: s.hoursPerWeek || 3,
         isLab: s.isLab === true || s.isLab === 'Yes' || s.isLab === 'true',
+        course: s.course || 'General',
         createdBy: userId
       });
       subjectMap[s.name] = subject._id;
@@ -406,6 +407,7 @@ router.post('/generate', auth, async (req, res) => {
         teacher = await Teacher.create({
           name: t.name, email: t.email,
           subjects: subjectIds,
+          course: t.course || 'General',
           maxHoursPerDay: t.maxHoursPerDay || 6,
           maxHoursPerWeek: t.maxHoursPerWeek || 24,
           createdBy: userId
