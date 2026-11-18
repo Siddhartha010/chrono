@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
+import ExcelDebug from '../components/ExcelDebug';
 
 export default function ExcelImport() {
   const navigate = useNavigate();
@@ -322,6 +323,8 @@ export default function ExcelImport() {
       </div>
 
       <div style={{ marginTop: 24, maxWidth: 1000 }}>
+        <ExcelDebug />
+        
         {/* Step 1: Download Template */}
         <div className="card">
           <div className="card-header">
