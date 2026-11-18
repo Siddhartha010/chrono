@@ -234,26 +234,26 @@ The system uses **MongoDB** with **Mongoose** models. Below is the relational st
                                 │
 ┌─────────────────────────────────────────────────────────────┐
 │                    APPLICATION LAYER                        │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
-│  │   Express.js    │  │   Routes        │  │   Utils     │ │
-│  │   Backend       │  │   - Auth        │  │   - GA      │ │
-│  │                 │  │   - Timetable   │  │   - Semester│ │
-│  │                 │  │   - Teachers    │  │     Generator│ │
-│  │                 │  │   - Substitutes │  │   - Export  │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────┘ │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐  │
+│  │   Express.js    │  │   Routes        │  │   Utils     │  │
+│  │   Backend       │  │   - Auth        │  │   - GA      │  │
+│  │                 │  │   - Timetable   │  │   - Semester│  │
+│  │                 │  │   - Teachers    │  │    Generator│  │
+│  │                 │  │   - Substitutes │  │   - Export  │  │
+│  └─────────────────┘  └─────────────────┘  └─────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                                 │
                             Mongoose ODM
                                 │
 ┌─────────────────────────────────────────────────────────────┐
 │                      DATA LAYER                             │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
-│  │   MongoDB       │  │   Collections   │  │   Indexes   │ │
-│  │   Database      │  │   - Users       │  │   - Compound│ │
-│  │                 │  │   - Timetables  │  │   - Text    │ │
-│  │                 │  │   - Teachers    │  │   - Geo     │ │
-│  │                 │  │   - Substitutes │  │             │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────┘ │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐  │
+│  │   MongoDB       │  │   Collections   │  │   Indexes   │  │
+│  │   Database      │  │   - Users       │  │   - Compound│  │
+│  │                 │  │   - Timetables  │  │   - Text    │  │
+│  │                 │  │   - Teachers    │  │   - Geo     │  │
+│  │                 │  │   - Substitutes │  │             │  │
+│  └─────────────────┘  └─────────────────┘  └─────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -547,7 +547,7 @@ errorHandling: {
 ## Team Roles & Project Division (Team of 4)
 To efficiently develop and maintain **ChronoGen**, tasks are divided into four specific roles:
 
-### **1. Frontend Developer — Siddharth Agarwal**
+### **1. Frontend Developer — Abhishek Mehra**
 - **Focus**: User interface, client-side state, and responsive design.
 - **Key Files**: [App.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/frontend/src/App.js), [Dashboard.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/frontend/src/pages/Dashboard.js), [TimetableView.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/frontend/src/pages/TimetableView.js).
 - **Responsibilities**:
@@ -565,7 +565,7 @@ To efficiently develop and maintain **ChronoGen**, tasks are divided into four s
     - Handle PDF and Excel file generation for export.
     - Manage project environment and dependencies.
 
-### **3. Database Developer — Divyansh Rautela**
+### **3. Database Developer — Siddharth Agarwal**
 - **Focus**: Data modeling, persistence, and relational integrity.
 - **Key Files**: [models/](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/backend/models/), [User.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/backend/models/User.js), [Timetable.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/backend/models/Timetable.js).
 - **Responsibilities**:
@@ -574,7 +574,7 @@ To efficiently develop and maintain **ChronoGen**, tasks are divided into four s
     - Optimize database queries for fetching constraints and results.
     - Maintain the Database Schema documentation.
 
-### **4. Algorithm (Algo) Specialist — Garhvit Singh Negi**
+### **4. Algorithm (Algo) Specialist — Mayank Takuli**
 - **Focus**: Core logic of the Genetic Algorithm and scheduling optimization.
 - **Key Files**: [geneticAlgorithm.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/backend/utils/geneticAlgorithm.js), [timetable.js](file:///c%3A/Users/Lenovo/OneDrive/Desktop/chrono/backend/routes/timetable.js).
 - **Responsibilities**:
