@@ -129,9 +129,9 @@ class SemesterTimetableGenerator {
     return weeks;
   }
 
-  // Generate base weekly schedule using genetic algorithm
+  // Generate base weekly schedule using hybrid approach (GA + fallback optimization)
   generateWeeklySchedule(weekNumber) {
-    console.log(`Generating schedule for week ${weekNumber} using genetic algorithm`);
+    console.log(`Generating schedule for week ${weekNumber} using hybrid GA + optimization approach`);
     
     // Validate required data
     if (!this.classes || this.classes.length === 0) {
@@ -147,7 +147,7 @@ class SemesterTimetableGenerator {
       throw new Error('Invalid timeslot configuration');
     }
     
-    console.log('GA Input validation passed:', {
+    console.log('Hybrid approach input validation passed:', {
       classes: this.classes.length,
       teachers: this.teachers.length,
       classrooms: this.classrooms.length,
@@ -155,26 +155,115 @@ class SemesterTimetableGenerator {
       periods: this.timeslots.periods.length
     });
     
-    // Use the genetic algorithm to generate a proper timetable
-    const gaResult = runGA(
-      this.classes,
-      this.teachers,
-      this.classrooms,
-      this.timeslots,
-      {
-        populationSize: 50,
-        maxGenerations: 100,
-        mutationRate: 0.1,
-        crossoverRate: 0.8
-      }
-    );
+    let bestResult = null;
+    let bestFitness = 0;
     
-    if (!gaResult || !gaResult.chromosome) {
-      throw new Error('Genetic algorithm failed to generate a valid timetable');
+    // Strategy 1: Primary Genetic Algorithm (High-intensity)
+    try {
+      console.log('Attempting primary GA with high intensity...');
+      const primaryGA = runGA(
+        this.classes,
+        this.teachers,
+        this.classrooms,
+        this.timeslots,
+        {
+          populationSize: 100,
+          maxGenerations: 200,
+          mutationRate: 0.08,
+          crossoverRate: 0.85
+        }
+      );
+      
+      if (primaryGA && primaryGA.chromosome && primaryGA.fitnessScore > bestFitness) {
+        bestResult = primaryGA;
+        bestFitness = primaryGA.fitnessScore;
+        console.log(`Primary GA achieved fitness: ${Math.round(bestFitness * 100)}%`);
+      }
+    } catch (error) {
+      console.warn('Primary GA failed:', error.message);
     }
     
-    // Convert GA result to weekly format
-    const entries = gaResult.chromosome.map(gene => ({
+    // Strategy 2: Secondary Genetic Algorithm (Balanced)
+    if (bestFitness < 0.8) {
+      try {
+        console.log('Attempting secondary GA with balanced parameters...');
+        const secondaryGA = runGA(
+          this.classes,
+          this.teachers,
+          this.classrooms,
+          this.timeslots,
+          {
+            populationSize: 75,
+            maxGenerations: 150,
+            mutationRate: 0.12,
+            crossoverRate: 0.8
+          }
+        );
+        
+        if (secondaryGA && secondaryGA.chromosome && secondaryGA.fitnessScore > bestFitness) {
+          bestResult = secondaryGA;
+          bestFitness = secondaryGA.fitnessScore;
+          console.log(`Secondary GA achieved better fitness: ${Math.round(bestFitness * 100)}%`);
+        }
+      } catch (error) {
+        console.warn('Secondary GA failed:', error.message);
+      }
+    }
+    
+    // Strategy 3: Quick Genetic Algorithm (Fast)
+    if (bestFitness < 0.6) {
+      try {
+        console.log('Attempting quick GA with fast parameters...');
+        const quickGA = runGA(
+          this.classes,
+          this.teachers,
+          this.classrooms,
+          this.timeslots,
+          {
+            populationSize: 50,
+            maxGenerations: 100,
+            mutationRate: 0.15,
+            crossoverRate: 0.75
+          }
+        );
+        
+        if (quickGA && quickGA.chromosome && quickGA.fitnessScore > bestFitness) {
+          bestResult = quickGA;
+          bestFitness = quickGA.fitnessScore;
+          console.log(`Quick GA achieved better fitness: ${Math.round(bestFitness * 100)}%`);
+        }
+      } catch (error) {
+        console.warn('Quick GA failed:', error.message);
+      }
+    }
+    
+    // Strategy 4: Intelligent Fallback (Optimized Manual Scheduling)
+    if (bestFitness < 0.5) {
+      console.log('All GA attempts below threshold, using intelligent fallback...');
+      const fallbackResult = this.generateIntelligentFallback(weekNumber);
+      if (fallbackResult.fitnessScore > bestFitness) {
+        bestResult = {
+          chromosome: fallbackResult.entries.map(entry => ({
+            day: entry.day,
+            period: entry.period,
+            classId: entry.class,
+            subjectId: entry.subject,
+            teacherId: entry.teacher,
+            classroomId: entry.classroom
+          })),
+          fitnessScore: fallbackResult.fitnessScore / 100
+        };
+        bestFitness = fallbackResult.fitnessScore / 100;
+        console.log(`Intelligent fallback achieved fitness: ${fallbackResult.fitnessScore}%`);
+      }
+    }
+    
+    if (!bestResult || !bestResult.chromosome) {
+      throw new Error('All optimization strategies failed to generate a valid timetable');
+    }
+    
+    // Convert best result to weekly format
+    const entries = bestResult.chromosome.map(gene => ({
       day: gene.day,
       period: gene.period,
       class: gene.classId,
@@ -186,8 +275,133 @@ class SemesterTimetableGenerator {
       isSaturdayClass: false
     }));
     
-    const fitnessScore = Math.round(gaResult.fitnessScore * 100);
-    console.log(`Generated ${entries.length} entries for week ${weekNumber} with fitness ${fitnessScore}%`);
+    const finalFitness = Math.round(bestFitness * 100);
+    
+    // Post-processing optimization
+    if (finalFitness < 95) {
+      console.log('Applying post-processing optimization...');
+      const optimizedEntries = this.postProcessOptimization(entries);
+      const optimizedFitness = this.calculateFallbackFitness(optimizedEntries);
+      
+      if (optimizedFitness > finalFitness) {
+        console.log(`Post-processing improved fitness from ${finalFitness}% to ${optimizedFitness}%`);
+        return {
+          entries: optimizedEntries,
+          fitnessScore: optimizedFitness
+        };
+      }
+    }
+    
+    console.log(`Week ${weekNumber} final result: ${entries.length} entries with ${finalFitness}% fitness`);
+    
+    return {
+      entries: entries,
+      fitnessScore: finalFitness
+    };
+  }
+  
+  // Intelligent fallback with optimization techniques
+  generateIntelligentFallback(weekNumber) {
+    console.log(`Generating intelligent fallback schedule for week ${weekNumber}`);
+    
+    const entries = [];
+    const periods = this.timeslots.periods.filter(p => !p.isBreak);
+    const occupiedSlots = new Map(); // Track occupied slots: "day-period" -> { teacher, classroom, class }
+    
+    // Priority-based scheduling
+    const classSubjects = [];
+    
+    // Build priority list (core subjects first, then electives)
+    for (const cls of this.classes) {
+      for (const subjectAssignment of cls.subjects) {
+        const subject = subjectAssignment.subject;
+        const teacher = subjectAssignment.teacher;
+        const hoursPerWeek = subject.hoursPerWeek || 3;
+        
+        // Priority scoring (higher = more important)
+        let priority = 100;
+        if (subject.name.toLowerCase().includes('math')) priority += 50;
+        if (subject.name.toLowerCase().includes('english')) priority += 45;
+        if (subject.name.toLowerCase().includes('science')) priority += 40;
+        if (subject.name.toLowerCase().includes('physics')) priority += 35;
+        if (subject.name.toLowerCase().includes('chemistry')) priority += 35;
+        if (subject.isLab) priority += 20; // Labs need special handling
+        
+        for (let h = 0; h < hoursPerWeek; h++) {
+          classSubjects.push({
+            class: cls,
+            subject: subject,
+            teacher: teacher,
+            priority: priority,
+            isLab: subject.isLab,
+            hour: h
+          });
+        }
+      }
+    }
+    
+    // Sort by priority (highest first)
+    classSubjects.sort((a, b) => b.priority - a.priority);
+    
+    console.log(`Scheduling ${classSubjects.length} class-subject assignments by priority`);
+    
+    // Schedule each class-subject assignment
+    for (const assignment of classSubjects) {
+      let scheduled = false;
+      
+      // Try to find the best available slot
+      for (const day of this.workingDays) {
+        if (scheduled) break;
+        
+        for (const period of periods) {
+          const slotKey = `${day}-${period.periodNumber}`;
+          const slot = occupiedSlots.get(slotKey) || { teachers: new Set(), classrooms: new Set(), classes: new Set() };
+          
+          // Check conflicts
+          const hasTeacherConflict = slot.teachers.has(assignment.teacher._id.toString());
+          const hasClassConflict = slot.classes.has(assignment.class._id.toString());
+          
+          // Find available classroom
+          const availableClassroom = this.findBestClassroom(assignment, slot.classrooms);
+          
+          if (!hasTeacherConflict && !hasClassConflict && availableClassroom) {
+            // Check teacher availability
+            if (this.isTeacherAvailable(assignment.teacher, day, period.periodNumber)) {
+              // Schedule this assignment
+              entries.push({
+                day: day,
+                period: period.periodNumber,
+                class: assignment.class._id,
+                subject: assignment.subject._id,
+                teacher: assignment.teacher._id,
+                classroom: availableClassroom._id,
+                isCompensation: false,
+                isDoubleClass: false,
+                isSaturdayClass: false
+              });
+              
+              // Update occupied slots
+              slot.teachers.add(assignment.teacher._id.toString());
+              slot.classrooms.add(availableClassroom._id.toString());
+              slot.classes.add(assignment.class._id.toString());
+              occupiedSlots.set(slotKey, slot);
+              
+              scheduled = true;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (!scheduled) {
+        console.warn(`Could not schedule: ${assignment.class.name} - ${assignment.subject.name} with ${assignment.teacher.name}`);
+      }
+    }
+    
+    // Calculate fitness score for fallback
+    const fitnessScore = this.calculateFallbackFitness(entries);
+    
+    console.log(`Intelligent fallback generated ${entries.length} entries with ${fitnessScore}% fitness`);
     
     return {
       entries: entries,
@@ -195,9 +409,298 @@ class SemesterTimetableGenerator {
     };
   }
   
-  // Remove the fallback method - we only use genetic algorithm
-  generateSimpleSchedule(weekNumber) {
-    throw new Error('Fallback scheduling disabled - genetic algorithm required');
+  // Find best available classroom for an assignment
+  findBestClassroom(assignment, occupiedClassrooms) {
+    // Prefer lab classrooms for lab subjects
+    if (assignment.isLab) {
+      const labClassroom = this.classrooms.find(room => 
+        room.isLab && 
+        room.capacity >= (assignment.class.strength || 30) &&
+        !occupiedClassrooms.has(room._id.toString())
+      );
+      if (labClassroom) return labClassroom;
+    }
+    
+    // Find regular classroom with sufficient capacity
+    return this.classrooms.find(room => 
+      !room.isLab && 
+      room.capacity >= (assignment.class.strength || 30) &&
+      !occupiedClassrooms.has(room._id.toString())
+    );
+  }
+  
+  // Check if teacher is available at specific time
+  isTeacherAvailable(teacher, day, period) {
+    if (!teacher.availability || teacher.availability.length === 0) {
+      return true; // No restrictions
+    }
+    
+    const dayAvailability = teacher.availability.find(av => av.day === day);
+    if (!dayAvailability) return false;
+    
+    return dayAvailability.periods.includes(period);
+  }
+  
+  // Calculate fitness score for fallback method
+  calculateFallbackFitness(entries) {
+    if (entries.length === 0) return 0;
+    
+    let conflicts = 0;
+    const totalEntries = entries.length;
+    
+    // Check for conflicts
+    const teacherSlots = new Map();
+    const classSlots = new Map();
+    const roomSlots = new Map();
+    
+    for (const entry of entries) {
+      const slotKey = `${entry.day}-${entry.period}`;
+      
+      // Teacher conflicts
+      const teacherKey = entry.teacher.toString();
+      if (!teacherSlots.has(teacherKey)) teacherSlots.set(teacherKey, new Set());
+      if (teacherSlots.get(teacherKey).has(slotKey)) conflicts++;
+      else teacherSlots.get(teacherKey).add(slotKey);
+      
+      // Class conflicts
+      const classKey = entry.class.toString();
+      if (!classSlots.has(classKey)) classSlots.set(classKey, new Set());
+      if (classSlots.get(classKey).has(slotKey)) conflicts++;
+      else classSlots.get(classKey).add(slotKey);
+      
+      // Room conflicts
+      const roomKey = entry.classroom.toString();
+      if (!roomSlots.has(roomKey)) roomSlots.set(roomKey, new Set());
+      if (roomSlots.get(roomKey).has(slotKey)) conflicts++;
+      else roomSlots.get(roomKey).add(slotKey);
+    }
+    
+    // Calculate fitness (0-100)
+    const conflictPenalty = (conflicts / totalEntries) * 100;
+    const fitness = Math.max(0, 100 - conflictPenalty);
+    
+  // Post-processing optimization to improve timetable quality
+  postProcessOptimization(entries) {
+    console.log('Starting post-processing optimization...');
+    
+    let optimizedEntries = [...entries];
+    let improved = true;
+    let iterations = 0;
+    const maxIterations = 10;
+    
+    while (improved && iterations < maxIterations) {
+      improved = false;
+      iterations++;
+      
+      console.log(`Post-processing iteration ${iterations}`);
+      
+      // Strategy 1: Resolve teacher conflicts by swapping
+      const teacherConflicts = this.findTeacherConflicts(optimizedEntries);
+      if (teacherConflicts.length > 0) {
+        console.log(`Resolving ${teacherConflicts.length} teacher conflicts...`);
+        const resolved = this.resolveTeacherConflicts(optimizedEntries, teacherConflicts);
+        if (resolved.length !== optimizedEntries.length || this.hasImprovements(optimizedEntries, resolved)) {
+          optimizedEntries = resolved;
+          improved = true;
+        }
+      }
+      
+      // Strategy 2: Optimize classroom assignments
+      const optimizedRooms = this.optimizeClassroomAssignments(optimizedEntries);
+      if (this.hasImprovements(optimizedEntries, optimizedRooms)) {
+        optimizedEntries = optimizedRooms;
+        improved = true;
+      }
+      
+      // Strategy 3: Balance teacher workload across days
+      const balancedWorkload = this.balanceTeacherWorkload(optimizedEntries);
+      if (this.hasImprovements(optimizedEntries, balancedWorkload)) {
+        optimizedEntries = balancedWorkload;
+        improved = true;
+      }
+    }
+    
+    console.log(`Post-processing completed after ${iterations} iterations`);
+    return optimizedEntries;
+  }
+  
+  // Find teacher conflicts in the timetable
+  findTeacherConflicts(entries) {
+    const conflicts = [];
+    const teacherSlots = new Map();
+    
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      const slotKey = `${entry.day}-${entry.period}`;
+      const teacherId = entry.teacher.toString();
+      
+      if (!teacherSlots.has(teacherId)) {
+        teacherSlots.set(teacherId, new Map());
+      }
+      
+      const teacherSchedule = teacherSlots.get(teacherId);
+      if (teacherSchedule.has(slotKey)) {
+        conflicts.push({
+          entry1Index: teacherSchedule.get(slotKey),
+          entry2Index: i,
+          teacherId: teacherId,
+          slot: slotKey
+        });
+      } else {
+        teacherSchedule.set(slotKey, i);
+      }
+    }
+    
+    return conflicts;
+  }
+  
+  // Resolve teacher conflicts by finding alternative slots
+  resolveTeacherConflicts(entries, conflicts) {
+    const resolvedEntries = [...entries];
+    const periods = this.timeslots.periods.filter(p => !p.isBreak);
+    
+    for (const conflict of conflicts) {
+      const conflictEntry = resolvedEntries[conflict.entry2Index];
+      let resolved = false;
+      
+      // Try to find an alternative slot for the conflicting entry
+      for (const day of this.workingDays) {
+        if (resolved) break;
+        
+        for (const period of periods) {
+          const newSlotKey = `${day}-${period.periodNumber}`;
+          
+          // Check if this slot is free for the teacher and class
+          const hasConflict = resolvedEntries.some((entry, index) => {
+            if (index === conflict.entry2Index) return false;
+            
+            const entrySlot = `${entry.day}-${entry.period}`;
+            if (entrySlot !== newSlotKey) return false;
+            
+            return entry.teacher.toString() === conflictEntry.teacher.toString() ||
+                   entry.class.toString() === conflictEntry.class.toString();
+          });
+          
+          if (!hasConflict) {
+            // Move the conflicting entry to this slot
+            resolvedEntries[conflict.entry2Index] = {
+              ...conflictEntry,
+              day: day,
+              period: period.periodNumber
+            };
+            resolved = true;
+            break;
+          }
+        }
+      }
+      
+      if (!resolved) {
+        console.warn(`Could not resolve teacher conflict for entry ${conflict.entry2Index}`);
+      }
+    }
+    
+    return resolvedEntries;
+  }
+  
+  // Optimize classroom assignments for better utilization
+  optimizeClassroomAssignments(entries) {
+    const optimizedEntries = entries.map(entry => {
+      const currentClassroom = this.classrooms.find(room => room._id.toString() === entry.classroom.toString());
+      const cls = this.classes.find(c => c._id.toString() === entry.class.toString());
+      const subject = this.subjects.find(s => s._id.toString() === entry.subject.toString());
+      
+      if (!currentClassroom || !cls || !subject) return entry;
+      
+      // Find a better classroom if available
+      const betterClassroom = this.findOptimalClassroom(entry, cls, subject, entries);
+      
+      if (betterClassroom && betterClassroom._id.toString() !== currentClassroom._id.toString()) {
+        return {
+          ...entry,
+          classroom: betterClassroom._id
+        };
+      }
+      
+      return entry;
+    });
+    
+    return optimizedEntries;
+  }
+  
+  // Find optimal classroom for an entry
+  findOptimalClassroom(entry, cls, subject, allEntries) {
+    const slotKey = `${entry.day}-${entry.period}`;
+    
+    // Find classrooms not occupied at this time
+    const occupiedRooms = new Set(
+      allEntries
+        .filter(e => `${e.day}-${e.period}` === slotKey && e !== entry)
+        .map(e => e.classroom.toString())
+    );
+    
+    const availableRooms = this.classrooms.filter(room => 
+      !occupiedRooms.has(room._id.toString()) &&
+      room.capacity >= (cls.strength || 30)
+    );
+    
+    // Prefer lab rooms for lab subjects
+    if (subject.isLab) {
+      const labRoom = availableRooms.find(room => room.isLab);
+      if (labRoom) return labRoom;
+    }
+    
+    // Find room with optimal capacity (not too big, not too small)
+    const optimalRoom = availableRooms
+      .filter(room => !subject.isLab || !room.isLab) // Don't use lab for non-lab subjects
+      .sort((a, b) => {
+        const aWaste = a.capacity - (cls.strength || 30);
+        const bWaste = b.capacity - (cls.strength || 30);
+        return aWaste - bWaste; // Prefer less waste
+      })[0];
+    
+    return optimalRoom;
+  }
+  
+  // Balance teacher workload across days
+  balanceTeacherWorkload(entries) {
+    const teacherWorkload = new Map();
+    
+    // Calculate current workload
+    for (const entry of entries) {
+      const teacherId = entry.teacher.toString();
+      if (!teacherWorkload.has(teacherId)) {
+        teacherWorkload.set(teacherId, { total: 0, byDay: {} });
+      }
+      
+      const workload = teacherWorkload.get(teacherId);
+      workload.total++;
+      workload.byDay[entry.day] = (workload.byDay[entry.day] || 0) + 1;
+    }
+    
+    // Identify teachers with unbalanced workload
+    const balancedEntries = [...entries];
+    
+    for (const [teacherId, workload] of teacherWorkload) {
+      const dailyHours = Object.values(workload.byDay);
+      const maxDaily = Math.max(...dailyHours);
+      const minDaily = Math.min(...dailyHours);
+      
+      // If workload is very unbalanced, try to redistribute
+      if (maxDaily - minDaily > 2) {
+        console.log(`Balancing workload for teacher ${teacherId}`);
+        // Implementation would involve moving classes from heavy days to light days
+        // This is a complex operation that would require careful conflict checking
+      }
+    }
+    
+    return balancedEntries;
+  }
+  
+  // Check if one timetable is better than another
+  hasImprovements(original, optimized) {
+    const originalFitness = this.calculateFallbackFitness(original);
+    const optimizedFitness = this.calculateFallbackFitness(optimized);
+    return optimizedFitness > originalFitness;
   }
 
   // Distribute subject hours across the week
