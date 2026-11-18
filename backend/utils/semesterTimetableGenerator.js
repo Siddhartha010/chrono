@@ -14,9 +14,18 @@ class SemesterTimetableGenerator {
     this.teachers = teachers;
     this.subjects = subjects;
     this.classrooms = classrooms;
-    this.timeslots = timeslots[0]; // Assuming one timeslot config
-    this.workingDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    this.timeslots = timeslots[0]; // Use the first timeslot config
+    this.workingDays = this.timeslots.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     this.compensationDay = 'Saturday';
+    
+    console.log('SemesterTimetableGenerator initialized:', {
+      semester: semester.name,
+      classes: classes.length,
+      teachers: teachers.length,
+      classrooms: classrooms.length,
+      timeslotDays: this.timeslots.days?.length,
+      timeslotPeriods: this.timeslots.periods?.length
+    });
   }
 
   // Generate complete semester timetable week by week
@@ -124,84 +133,71 @@ class SemesterTimetableGenerator {
   generateWeeklySchedule(weekNumber) {
     console.log(`Generating schedule for week ${weekNumber} using genetic algorithm`);
     
-    try {
-      // Use the genetic algorithm to generate a proper timetable
-      const gaResult = runGA(
-        this.classes,
-        this.teachers,
-        this.classrooms,
-        this.timeslots,
-        {
-          populationSize: 50,
-          maxGenerations: 100,
-          mutationRate: 0.1,
-          crossoverRate: 0.8
-        }
-      );
-      
-      // Convert GA result to weekly format
-      const entries = gaResult.chromosome.map(gene => ({
-        day: gene.day,
-        period: gene.period,
-        class: gene.classId,
-        subject: gene.subjectId,
-        teacher: gene.teacherId,
-        classroom: gene.classroomId,
-        isCompensation: false,
-        isDoubleClass: false,
-        isSaturdayClass: false
-      }));
-      
-      console.log(`Generated ${entries.length} entries for week ${weekNumber} with fitness ${Math.round(gaResult.fitnessScore * 100)}%`);
-      
-      return {
-        entries: entries,
-        fitnessScore: Math.round(gaResult.fitnessScore * 100)
-      };
-    } catch (error) {
-      console.error(`GA failed for week ${weekNumber}, using fallback:`, error);
-      
-      // Fallback to simple scheduling
-      const entries = this.generateSimpleSchedule(weekNumber);
-      return {
-        entries: entries,
-        fitnessScore: 50 // Default score for fallback
-      };
+    // Validate required data
+    if (!this.classes || this.classes.length === 0) {
+      throw new Error('No classes available for timetable generation');
     }
+    if (!this.teachers || this.teachers.length === 0) {
+      throw new Error('No teachers available for timetable generation');
+    }
+    if (!this.classrooms || this.classrooms.length === 0) {
+      throw new Error('No classrooms available for timetable generation');
+    }
+    if (!this.timeslots || !this.timeslots.days || !this.timeslots.periods) {
+      throw new Error('Invalid timeslot configuration');
+    }
+    
+    console.log('GA Input validation passed:', {
+      classes: this.classes.length,
+      teachers: this.teachers.length,
+      classrooms: this.classrooms.length,
+      days: this.timeslots.days.length,
+      periods: this.timeslots.periods.length
+    });
+    
+    // Use the genetic algorithm to generate a proper timetable
+    const gaResult = runGA(
+      this.classes,
+      this.teachers,
+      this.classrooms,
+      this.timeslots,
+      {
+        populationSize: 50,
+        maxGenerations: 100,
+        mutationRate: 0.1,
+        crossoverRate: 0.8
+      }
+    );
+    
+    if (!gaResult || !gaResult.chromosome) {
+      throw new Error('Genetic algorithm failed to generate a valid timetable');
+    }
+    
+    // Convert GA result to weekly format
+    const entries = gaResult.chromosome.map(gene => ({
+      day: gene.day,
+      period: gene.period,
+      class: gene.classId,
+      subject: gene.subjectId,
+      teacher: gene.teacherId,
+      classroom: gene.classroomId,
+      isCompensation: false,
+      isDoubleClass: false,
+      isSaturdayClass: false
+    }));
+    
+    const fitnessScore = Math.round(gaResult.fitnessScore * 100);
+    console.log(`Generated ${entries.length} entries for week ${weekNumber} with fitness ${fitnessScore}%`);
+    
+    return {
+      entries: entries,
+      fitnessScore: fitnessScore
+    };
   }
   
-  // Fallback simple scheduling method
+  // Remove the fallback method - we only use genetic algorithm
   generateSimpleSchedule(weekNumber) {
-    const entries = [];
-    const periods = this.timeslots.periods.filter(p => !p.isBreak);
-    
-    for (const cls of this.classes) {
-      for (const subjectAssignment of cls.subjects) {
-        const subject = subjectAssignment.subject;
-        const teacher = subjectAssignment.teacher;
-        const hoursPerWeek = subject.hoursPerWeek || 3;
-        
-        // Simple distribution across the week
-        for (let h = 0; h < hoursPerWeek && h < periods.length; h++) {
-          const dayIndex = h % this.workingDays.length;
-          const periodIndex = Math.floor(h / this.workingDays.length) % periods.length;
-          
-          entries.push({
-            day: this.workingDays[dayIndex],
-            period: periods[periodIndex].periodNumber,
-            class: cls._id,
-            subject: subject._id,
-            teacher: teacher._id,
-            classroom: this.findAvailableClassroom(cls, subject)?._id,
-            isCompensation: false,
-            isDoubleClass: false,
-            isSaturdayClass: false
-          });
-        }
-      }
-    }
-    
-    return entries;
+    throw new Error('Fallback scheduling disabled - genetic algorithm required');
   }
 
   // Distribute subject hours across the week
